@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}Guidelines{% endblock %}
+{% block content %}
+<h1>Coding guidelines (RAG)</h1>
+<p class="muted lead">Upload your team's standards. During each analysis the AI retrieves the passages relevant to the code it reviews and reports violations with a citation to your document.</p>
+<div class="grid two">
+  <div class="card">
+    <h2>Upload a guideline</h2>
+    <form method="post" enctype="multipart/form-data" class="form">{% csrf_token %}
+      {{ form.non_field_errors }}
+      {% for field in form %}<div class="field"><label for="{{ field.id_for_label }}">{{ field.label }}</label>{{ field }}{{ field.errors }}</div>{% endfor %}
+      <button class="btn" type="submit">Upload &amp; index</button>
+    </form>
+    <p class="muted small">Text-based PDFs only (scanned images need OCR first). Max 10 MB.</p>
+  </div>
+  <div class="card">
+    <h2>Your guidelines</h2>
+    <div class="table-scroll">
+      <table class="table">
+        <thead><tr><th>Title</th><th>Passages</th><th>Added</th><th></th></tr></thead>
+        <tbody>
+        {% for g in items %}
+          <tr><td><strong>{{ g.title }}</strong><br><span class="muted small">{{ g.original_name }}</span></td><td>{{ g.chunks }}</td>
+              <td class="muted">{{ g.created_at|date:"j M Y" }}</td>
+              <td class="right"><form method="post" action="{% url 'delete_guideline' g.pk %}" onsubmit="return confirm('Remove this guideline?')">{% csrf_token %}<button class="btn ghost small danger" type="submit">Remove</button></form></td></tr>
+        {% empty %}<tr><td colspan="4" class="muted">No guidelines uploaded yet.</td></tr>{% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}{{ title }}{% endblock %}
+{% block main_class %}auth-page{% endblock %}
+{% block content %}
+<section class="auth-layout">
+  <aside class="auth-aside">
+    <span class="eyebrow auth-eyebrow">Secure your account</span>
+    <h1>One quick check to continue.</h1>
+    <p>Enter the short-lived code sent to your email. It expires after 10 minutes.</p>
+    <a class="auth-home-link" href="{% url 'dashboard' %}">← Back to home</a>
+  </aside>
+  <div class="auth-card">
+    <div class="auth-card-heading">
+      <span class="auth-mark">{% include "partials/brand_mark.html" %}</span>
+      <span class="eyebrow">Email verification</span>
+      <h2>{{ title }}</h2>
+      <p>{{ description }}</p>
+    </div>
+    <form method="post" class="form auth-form">{% csrf_token %}
+      {{ form.non_field_errors }}
+      {% for field in form %}<div class="field"><label for="{{ field.id_for_label }}">{{ field.label }}</label>{{ field }}{{ field.errors }}</div>{% endfor %}
+      <button class="btn btn-full" type="submit">Verify code <span aria-hidden="true">→</span></button>
+    </form>
+    <p class="auth-switch"><a href="{{ back_url }}">{{ back_label }}</a></p>
+  </div>
+</section>
+{% endblock %}

@@ -1,0 +1,226 @@
+%PDF-1.4
+%‚„œ”
+1 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+2 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>
+endobj
+3 0 obj
+<< /Length 3605 >>
+stream
+0.12 0.39 0.72 rg 0 833 595 9 re f
+0.12 0.39 0.72 rg BT /F2 10 Tf 42 804 Td (REPO INTEL) Tj ET
+0.36 0.42 0.5 rg BT /F2 8 Tf 414 804 Td (PROJECT OVERVIEW) Tj ET
+0.84 0.88 0.92 RG 1 w 42 792 m 553 792 l S
+0.84 0.88 0.92 RG 1 w 42 42 m 553 42 l S
+0.36 0.42 0.5 rg BT /F1 8 Tf 42 25 Td (Project Documentation  |  October 2026) Tj ET
+0.36 0.42 0.5 rg BT /F2 8 Tf 533 25 Td (1) Tj ET
+0.92 0.96 1.0 rg 42 574 511 208 re f
+0.12 0.39 0.72 rg BT /F2 10 Tf 62 740 Td (AI-POWERED GITHUB REPOSITORY) Tj ET
+0.08 0.17 0.3 rg BT /F2 21 Tf 62 708 Td (INTELLIGENCE & CODE REVIEW) Tj ET
+0.36 0.42 0.5 rg BT /F1 10 Tf 62 680 Td (Project documentation | Demonstration and submission copy) Tj ET
+0.75 0.83 0.91 RG 1 w 62 660 m 533 660 l S
+0.13 0.17 0.23 rg BT /F1 9 Tf 62 637 Td (Prepared by: ______________________________) Tj ET
+0.08 0.17 0.3 rg BT /F2 9 Tf 62 617 Td (Project: Repo Intel) Tj ET
+0.08 0.17 0.3 rg BT /F2 14 Tf 44 548 Td (1. Project Definition) Tj ET
+0.13 0.17 0.23 rg BT /F1 9.4 Tf 44 527 Td (Repo Intel is a web-based software platform that analyzes GitHub repositories and) Tj ET
+0.13 0.17 0.23 rg BT /F1 9.4 Tf 44 513 Td (produces a structured, evidence-based code review. A user submits a repository URL; the) Tj ET
+0.13 0.17 0.23 rg BT /F1 9.4 Tf 44 499 Td (platform inspects eligible source files and returns an overall score, category scores,) Tj ET
+0.13 0.17 0.23 rg BT /F1 9.4 Tf 44 485 Td (technology and architecture summaries, and actionable findings with file and line) Tj ET
+0.13 0.17 0.23 rg BT /F1 9.4 Tf 44 471 Td (references.) Tj ET
+0.13 0.17 0.23 rg BT /F1 9.4 Tf 44 453 Td (The system combines deterministic checks with an optional large-language-model review.) Tj ET
+0.13 0.17 0.23 rg BT /F1 9.4 Tf 44 439 Td (Users can also upload coding guidelines so the AI reviewer can compare supplied code) Tj ET
+0.13 0.17 0.23 rg BT /F1 9.4 Tf 44 425 Td (samples against their guidance. The platform is intended as a development aid and) Tj ET
+0.13 0.17 0.23 rg BT /F1 9.4 Tf 44 411 Td (learning tool, not as a replacement for a full security audit or human review.) Tj ET
+0.08 0.17 0.3 rg BT /F2 14 Tf 44 388 Td (2. Problem and Objectives) Tj ET
+0.12 0.39 0.72 rg 48 369 4 4 re f
+0.13 0.17 0.23 rg BT /F1 9.1 Tf 60 367 Td (Reduce the effort required to understand an unfamiliar repository and identify) Tj ET
+0.13 0.17 0.23 rg BT /F1 9.1 Tf 60 354 Td (common quality, security, performance, and best-practice concerns.) Tj ET
+0.12 0.39 0.72 rg 48 339 4 4 re f
+0.13 0.17 0.23 rg BT /F1 9.1 Tf 60 337 Td (Provide explainable findings: each issue includes code evidence, location, reason,) Tj ET
+0.13 0.17 0.23 rg BT /F1 9.1 Tf 60 324 Td (severity, and a recommended action.) Tj ET
+0.12 0.39 0.72 rg 48 309 4 4 re f
+0.13 0.17 0.23 rg BT /F1 9.1 Tf 60 307 Td (Summarize repository technologies and architecture in one report, with analysis) Tj ET
+0.13 0.17 0.23 rg BT /F1 9.1 Tf 60 294 Td (history available to the signed-in user.) Tj ET
+0.12 0.39 0.72 rg 48 279 4 4 re f
+0.13 0.17 0.23 rg BT /F1 9.1 Tf 60 277 Td (Support privacy-aware use of uploaded guidelines and optional GitHub authorization) Tj ET
+0.13 0.17 0.23 rg BT /F1 9.1 Tf 60 264 Td (for private repositories.) Tj ET
+0.08 0.17 0.3 rg BT /F2 14 Tf 44 243 Td (3. Main User Features) Tj ET
+0.13 0.17 0.23 rg BT /F1 9.4 Tf 44 222 Td (Account registration and sign-in; email verification and password recovery; repository) Tj ET
+0.13 0.17 0.23 rg BT /F1 9.4 Tf 44 208 Td (analysis; report history; guideline upload and management; and private-repository) Tj ET
+0.13 0.17 0.23 rg BT /F1 9.4 Tf 44 194 Td (authorization when configured.) Tj ET
+
+endstream
+endobj
+4 0 obj
+<< /Type /Page /Parent 9 /MediaBox [0 0 595 842] /Resources << /Font << /F1 1 0 R /F2 2 0 R >> >> /Contents 3 0 R >>
+endobj
+5 0 obj
+<< /Length 5424 >>
+stream
+0.12 0.39 0.72 rg 0 833 595 9 re f
+0.12 0.39 0.72 rg BT /F2 10 Tf 42 804 Td (REPO INTEL) Tj ET
+0.36 0.42 0.5 rg BT /F2 8 Tf 414 804 Td (ARCHITECTURE & TECHNOLOGY) Tj ET
+0.84 0.88 0.92 RG 1 w 42 792 m 553 792 l S
+0.84 0.88 0.92 RG 1 w 42 42 m 553 42 l S
+0.36 0.42 0.5 rg BT /F1 8 Tf 42 25 Td (Project Documentation  |  October 2026) Tj ET
+0.36 0.42 0.5 rg BT /F2 8 Tf 533 25 Td (2) Tj ET
+0.08 0.17 0.3 rg BT /F2 14 Tf 44 786 Td (4. System Architecture) Tj ET
+0.13 0.17 0.23 rg BT /F1 9.4 Tf 44 765 Td (The application is split into a browser-facing Django web application and a separate) Tj ET
+0.13 0.17 0.23 rg BT /F1 9.4 Tf 44 751 Td (FastAPI analysis service. Django handles users, pages, saved analyses, and report) Tj ET
+0.13 0.17 0.23 rg BT /F1 9.4 Tf 44 737 Td (display. The AI service retrieves repository content from GitHub, runs the analysis) Tj ET
+0.13 0.17 0.23 rg BT /F1 9.4 Tf 44 723 Td (workflow, and returns report data to Django over an internal authenticated API.) Tj ET
+0.92 0.96 1.0 rg 44 632 507 91 re f
+0.12 0.39 0.72 rg BT /F2 8 Tf 58 700 Td (REQUEST AND RESULT FLOW) Tj ET
+0.08 0.17 0.3 rg BT /F2 10 Tf 58 676 Td (Browser  ->  Django web app  ->  FastAPI analysis service) Tj ET
+0.13 0.17 0.23 rg BT /F1 9 Tf 58 657 Td (                         ->  GitHub + review workflow  ->  report JSON) Tj ET
+0.36 0.42 0.5 rg BT /F1 8.5 Tf 58 640 Td (Django stores the completed analysis and displays the report to its owner.) Tj ET
+0.08 0.17 0.3 rg BT /F2 14 Tf 44 607 Td (5. Technology Stack) Tj ET
+0.95 0.97 0.99 rg 44 535 112 53 re f
+0.08 0.17 0.3 rg BT /F2 8.2 Tf 52 572 Td (Frontend / UI) Tj ET
+0.13 0.17 0.23 rg BT /F1 8 Tf 166 572 Td (Django templates, HTML, CSS, and JavaScript. The browser UI includes) Tj ET
+0.13 0.17 0.23 rg BT /F1 8 Tf 166 561 Td (authentication, dashboard, analysis forms, reports, history, and) Tj ET
+0.13 0.17 0.23 rg BT /F1 8 Tf 166 550 Td (guideline management.) Tj ET
+0.84 0.88 0.92 RG 1 w 44 531 m 551 531 l S
+0.95 0.97 0.99 rg 44 494 112 41 re f
+0.08 0.17 0.3 rg BT /F2 8.2 Tf 52 519 Td (Web backend) Tj ET
+0.13 0.17 0.23 rg BT /F1 8 Tf 166 519 Td (Python and Django 5.x. Handles account workflows, application pages,) Tj ET
+0.13 0.17 0.23 rg BT /F1 8 Tf 166 508 Td (authorization, analysis polling, and persistence.) Tj ET
+0.84 0.88 0.92 RG 1 w 44 490 m 551 490 l S
+0.95 0.97 0.99 rg 44 453 112 41 re f
+0.08 0.17 0.3 rg BT /F2 8.2 Tf 52 478 Td (AI service) Tj ET
+0.13 0.17 0.23 rg BT /F1 8 Tf 166 478 Td (Python, FastAPI, LangGraph, and LangChain. Coordinates repository) Tj ET
+0.13 0.17 0.23 rg BT /F1 8 Tf 166 467 Td (analysis and produces structured review output.) Tj ET
+0.84 0.88 0.92 RG 1 w 44 449 m 551 449 l S
+0.95 0.97 0.99 rg 44 400 112 53 re f
+0.08 0.17 0.3 rg BT /F2 8.2 Tf 52 437 Td (AI / language model) Tj ET
+0.13 0.17 0.23 rg BT /F1 8 Tf 166 437 Td (Groq API with a configurable model for AI-assisted review and) Tj ET
+0.13 0.17 0.23 rg BT /F1 8 Tf 166 426 Td (summaries. Rule-based checks provide a fallback when AI is) Tj ET
+0.13 0.17 0.23 rg BT /F1 8 Tf 166 415 Td (unavailable.) Tj ET
+0.84 0.88 0.92 RG 1 w 44 396 m 551 396 l S
+0.95 0.97 0.99 rg 44 347 112 53 re f
+0.08 0.17 0.3 rg BT /F2 8.2 Tf 52 384 Td (Primary database) Tj ET
+0.13 0.17 0.23 rg BT /F1 8 Tf 166 384 Td (PostgreSQL 16 in the Docker Compose deployment. SQLite is used as a) Tj ET
+0.13 0.17 0.23 rg BT /F1 8 Tf 166 373 Td (lightweight local-development fallback when PostgreSQL settings are) Tj ET
+0.13 0.17 0.23 rg BT /F1 8 Tf 166 362 Td (absent.) Tj ET
+0.84 0.88 0.92 RG 1 w 44 343 m 551 343 l S
+0.95 0.97 0.99 rg 44 306 112 41 re f
+0.08 0.17 0.3 rg BT /F2 8.2 Tf 52 331 Td (Guideline store) Tj ET
+0.13 0.17 0.23 rg BT /F1 8 Tf 166 331 Td (Chroma vector database for indexed, user-scoped guideline passages) Tj ET
+0.13 0.17 0.23 rg BT /F1 8 Tf 166 320 Td (used in retrieval-augmented review.) Tj ET
+0.84 0.88 0.92 RG 1 w 44 302 m 551 302 l S
+0.95 0.97 0.99 rg 44 265 112 41 re f
+0.08 0.17 0.3 rg BT /F2 8.2 Tf 52 290 Td (External integration) Tj ET
+0.13 0.17 0.23 rg BT /F1 8 Tf 166 290 Td (GitHub API for repository access; optional GitHub OAuth for private) Tj ET
+0.13 0.17 0.23 rg BT /F1 8 Tf 166 279 Td (repositories. Docker Compose runs the web, AI, and database services.) Tj ET
+0.84 0.88 0.92 RG 1 w 44 261 m 551 261 l S
+0.08 0.17 0.3 rg BT /F2 14 Tf 44 240 Td (6. High-Level Project Structure) Tj ET
+0.12 0.39 0.72 rg BT /F2 8.4 Tf 48 219 Td (ai_service/) Tj ET
+0.13 0.17 0.23 rg BT /F1 8 Tf 180 219 Td (FastAPI application, analysis workflow, GitHub client, LLM integration, RAG, tests) Tj ET
+0.12 0.39 0.72 rg BT /F2 8.4 Tf 48 206 Td (web/accounts/) Tj ET
+0.13 0.17 0.23 rg BT /F1 8 Tf 180 206 Td (Django account, registration, verification, and password workflows) Tj ET
+0.12 0.39 0.72 rg BT /F2 8.4 Tf 48 193 Td (web/reviews/) Tj ET
+0.13 0.17 0.23 rg BT /F1 8 Tf 180 193 Td (Analysis, reports, findings, guideline management, and related tests) Tj ET
+0.12 0.39 0.72 rg BT /F2 8.4 Tf 48 180 Td (web/templates/ + web/static/) Tj ET
+0.13 0.17 0.23 rg BT /F1 8 Tf 180 180 Td (HTML templates, styles, and browser-side assets) Tj ET
+0.12 0.39 0.72 rg BT /F2 8.4 Tf 48 167 Td (web/config/) Tj ET
+0.13 0.17 0.23 rg BT /F1 8 Tf 180 167 Td (Django project configuration and URL routing) Tj ET
+0.12 0.39 0.72 rg BT /F2 8.4 Tf 48 154 Td (docker-compose.yml) Tj ET
+0.13 0.17 0.23 rg BT /F1 8 Tf 180 154 Td (Local multi-service orchestration for PostgreSQL, web, and AI service) Tj ET
+
+endstream
+endobj
+6 0 obj
+<< /Type /Page /Parent 9 /MediaBox [0 0 595 842] /Resources << /Font << /F1 1 0 R /F2 2 0 R >> >> /Contents 5 0 R >>
+endobj
+7 0 obj
+<< /Length 4962 >>
+stream
+0.12 0.39 0.72 rg 0 833 595 9 re f
+0.12 0.39 0.72 rg BT /F2 10 Tf 42 804 Td (REPO INTEL) Tj ET
+0.36 0.42 0.5 rg BT /F2 8 Tf 414 804 Td (WORKFLOW & CONCLUSION) Tj ET
+0.84 0.88 0.92 RG 1 w 42 792 m 553 792 l S
+0.84 0.88 0.92 RG 1 w 42 42 m 553 42 l S
+0.36 0.42 0.5 rg BT /F1 8 Tf 42 25 Td (Project Documentation  |  October 2026) Tj ET
+0.36 0.42 0.5 rg BT /F2 8 Tf 533 25 Td (3) Tj ET
+0.08 0.17 0.3 rg BT /F2 14 Tf 44 786 Td (7. Analysis Workflow) Tj ET
+0.12 0.39 0.72 rg BT /F2 9.3 Tf 48 765 Td (1. Submit) Tj ET
+0.13 0.17 0.23 rg BT /F1 8.8 Tf 62 751 Td (The signed-in user enters a GitHub repository URL and chooses a public or) Tj ET
+0.13 0.17 0.23 rg BT /F1 8.8 Tf 62 739 Td (authorized private-repository flow.) Tj ET
+0.12 0.39 0.72 rg BT /F2 9.3 Tf 48 723 Td (2. Fetch and detect) Tj ET
+0.13 0.17 0.23 rg BT /F1 8.8 Tf 62 709 Td (The analysis service validates the repository reference, retrieves eligible) Tj ET
+0.13 0.17 0.23 rg BT /F1 8.8 Tf 62 697 Td (repository content, and identifies languages, frameworks, and other technologies.) Tj ET
+0.12 0.39 0.72 rg BT /F2 9.3 Tf 48 681 Td (3. Select and protect) Tj ET
+0.13 0.17 0.23 rg BT /F1 8.8 Tf 62 667 Td (Source files are prioritized and split into chunks. Secrets are masked before code) Tj ET
+0.13 0.17 0.23 rg BT /F1 8.8 Tf 62 655 Td (is sent to an AI provider; environment files are not read as source.) Tj ET
+0.12 0.39 0.72 rg BT /F2 9.3 Tf 48 639 Td (4. Review) Tj ET
+0.13 0.17 0.23 rg BT /F1 8.8 Tf 62 625 Td (Static checks run alongside a structured AI review for relevant code samples.) Tj ET
+0.13 0.17 0.23 rg BT /F1 8.8 Tf 62 613 Td (Uploaded guideline passages can be included in that review.) Tj ET
+0.12 0.39 0.72 rg BT /F2 9.3 Tf 48 597 Td (5. Verify and score) Tj ET
+0.13 0.17 0.23 rg BT /F1 8.8 Tf 62 583 Td (Quoted evidence is checked against source content, findings are grouped and scored,) Tj ET
+0.13 0.17 0.23 rg BT /F1 8.8 Tf 62 571 Td (and the service prepares architecture and summary information.) Tj ET
+0.12 0.39 0.72 rg BT /F2 9.3 Tf 48 555 Td (6. Save and display) Tj ET
+0.13 0.17 0.23 rg BT /F1 8.8 Tf 62 541 Td (The completed report is returned to Django, stored with the user account, and shown) Tj ET
+0.13 0.17 0.23 rg BT /F1 8.8 Tf 62 529 Td (in the report and analysis history pages.) Tj ET
+0.08 0.17 0.3 rg BT /F2 14 Tf 44 509 Td (8. Security, Privacy, and Limitations) Tj ET
+0.12 0.39 0.72 rg 48 490 4 4 re f
+0.13 0.17 0.23 rg BT /F1 9.1 Tf 60 488 Td (Analysis and guideline records are scoped to the signed-in user. Private) Tj ET
+0.13 0.17 0.23 rg BT /F1 9.1 Tf 60 475 Td (repository access uses a GitHub authorization flow when configured.) Tj ET
+0.12 0.39 0.72 rg 48 460 4 4 re f
+0.13 0.17 0.23 rg BT /F1 9.1 Tf 60 458 Td (The AI review samples selected files and code chunks to manage request size and) Tj ET
+0.13 0.17 0.23 rg BT /F1 9.1 Tf 60 445 Td (cost; it does not guarantee that every line or every issue is reviewed.) Tj ET
+0.12 0.39 0.72 rg 48 430 4 4 re f
+0.13 0.17 0.23 rg BT /F1 9.1 Tf 60 428 Td (AI findings can be incomplete or incorrect. Evidence verification reduces) Tj ET
+0.13 0.17 0.23 rg BT /F1 9.1 Tf 60 415 Td (unsupported findings, but users should validate recommendations before making) Tj ET
+0.13 0.17 0.23 rg BT /F1 9.1 Tf 60 402 Td (changes.) Tj ET
+0.12 0.39 0.72 rg 48 387 4 4 re f
+0.13 0.17 0.23 rg BT /F1 9.1 Tf 60 385 Td (Repository access can be constrained by GitHub API rate limits. AI-provider) Tj ET
+0.13 0.17 0.23 rg BT /F1 9.1 Tf 60 372 Td (limits and request-size limits can also affect an analysis.) Tj ET
+0.12 0.39 0.72 rg 48 357 4 4 re f
+0.13 0.17 0.23 rg BT /F1 9.1 Tf 60 355 Td (The platform is a static review aid, not a penetration test. Uploaded guideline) Tj ET
+0.13 0.17 0.23 rg BT /F1 9.1 Tf 60 342 Td (coverage depends on whether relevant code is included in the reviewed sample.) Tj ET
+0.08 0.17 0.3 rg BT /F2 14 Tf 44 322 Td (9. Future Enhancements) Tj ET
+0.12 0.39 0.72 rg 48 303 4 4 re f
+0.13 0.17 0.23 rg BT /F1 9.1 Tf 60 301 Td (Expand code coverage while preserving clear context and manageable analysis) Tj ET
+0.13 0.17 0.23 rg BT /F1 9.1 Tf 60 288 Td (costs.) Tj ET
+0.12 0.39 0.72 rg 48 273 4 4 re f
+0.13 0.17 0.23 rg BT /F1 9.1 Tf 60 271 Td (Add more automated security and quality tools, richer test coverage, and improved) Tj ET
+0.13 0.17 0.23 rg BT /F1 9.1 Tf 60 258 Td (queueing for long-running jobs.) Tj ET
+0.12 0.39 0.72 rg 48 243 4 4 re f
+0.13 0.17 0.23 rg BT /F1 9.1 Tf 60 241 Td (Provide export options and clearer per-file visibility into which code and) Tj ET
+0.13 0.17 0.23 rg BT /F1 9.1 Tf 60 228 Td (guidelines were evaluated.) Tj ET
+0.92 0.96 1.0 rg 44 55 507 48 re f
+0.12 0.39 0.72 rg BT /F2 8 Tf 58 84 Td (CONCLUSION) Tj ET
+0.08 0.17 0.3 rg BT /F2 8.5 Tf 58 68 Td (Repo Intel brings repository discovery, evidence-backed review, and actionable guidance) Tj ET
+0.08 0.17 0.3 rg BT /F2 8.5 Tf 58 57 Td (together in a single web-based workflow for developers and project teams.) Tj ET
+
+endstream
+endobj
+8 0 obj
+<< /Type /Page /Parent 9 /MediaBox [0 0 595 842] /Resources << /Font << /F1 1 0 R /F2 2 0 R >> >> /Contents 7 0 R >>
+endobj
+9 0 obj
+<< /Type /Pages /Kids [4 0 R 6 0 R 8 0 R] /Count 3 >>
+endobj
+10 0 obj
+<< /Type /Catalog /Pages 9 0 R >>
+endobj
+xref
+0 11
+0000000000 65535 f 
+0000000015 00000 n 
+0000000085 00000 n 
+0000000160 00000 n 
+0000003817 00000 n 
+0000003949 00000 n 
+0000009425 00000 n 
+0000009557 00000 n 
+0000014571 00000 n 
+0000014703 00000 n 
+0000014772 00000 n 
+trailer
+<< /Size 11 /Root 10 0 R >>
+startxref
+14822
+%%EOF

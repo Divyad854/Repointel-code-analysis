@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}GitHub Repository Analyzer{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <p class="eyebrow">REPOSITORY INTELLIGENCE</p>
+    <h1>GitHub Repository Analyzer</h1>
+    <p class="lead">Run an evidence-backed review of one public or private GitHub repository.</p>
+  </div>
+</div>
+<div class="grid two">
+  <section class="card">
+    <form method="post" class="form">{% csrf_token %}
+      {{ form.non_field_errors }}
+      <div class="field">
+        <label for="{{ form.repo_url.id_for_label }}">{{ form.repo_url.label }}</label>
+        {{ form.repo_url }}
+        <small class="muted">Enter the full URL of one repository, for example https://github.com/Divyad854/Privaterepo.</small>
+        {{ form.repo_url.errors }}
+      </div>
+      <fieldset class="field">
+        <legend>{{ form.analysis_type.label }}</legend>
+        <div class="mode-options">
+          {% for radio in form.analysis_type %}
+          <label class="mode-card">
+            {{ radio.tag }}
+            <span><strong>{{ radio.choice_label }}</strong>
+              {% if forloop.first %}
+                <small>Analyze this repository without GitHub sign-in.</small>
+              {% else %}
+                <small>Authorize with an account that can access this repository. GitHub may skip the consent screen if you already authorized Repo Intel; access is revoked after the analysis.</small>
+              {% endif %}
+            </span>
+          </label>
+          {% endfor %}
+        </div>
+        {{ form.analysis_type.errors }}
+      </fieldset>
+      <button class="btn" type="submit">Analyze repository</button>
+    </form>
+  </section>
+  <section class="card">
+    <h2>What the analysis covers</h2>
+    <ol class="steps">
+      <li>Fetch the selected repository from GitHub.</li>
+      <li>Review its code quality, security, performance, documentation and architecture.</li>
+      <li>Get a score and evidence-backed findings for this repository only.</li>
+    </ol>
+    {% if has_guidelines %}
+      <p class="note">Your <a href="{% url 'guidelines' %}">uploaded coding guidelines</a> will be included in the review.</p>
+    {% else %}
+      <p class="muted">You can add <a href="{% url 'guidelines' %}">coding guidelines</a> to customize the review.</p>
+    {% endif %}
+  </section>
+</div>
+{% endblock %}

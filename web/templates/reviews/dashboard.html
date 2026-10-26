@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% load static review_extras %}
+{% block title %}Dashboard{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>Dashboard</h1>
+  <a class="btn" href="{% url 'analyze' %}">+ Analyze a repository</a>
+</div>
+
+{% if not has_data %}
+<div class="card empty">
+  <h2>No reports yet</h2>
+  <p class="muted">Enter one GitHub repository URL. Public repositories can be analyzed directly; private repositories require one-time GitHub authorization.</p>
+  <a class="btn" href="{% url 'analyze' %}">Analyze your first repository</a>
+  {% if active %}<p class="muted">{{ active }} analysis in progress — see <a href="{% url 'history' %}">My reports</a>.</p>{% endif %}
+</div>
+{% else %}
+<div class="stats grid five">
+  <div class="stat card"><span class="num">{{ analyzed }}</span><span class="lbl">Repositories analyzed</span></div>
+  <div class="stat card"><span class="num {{ avg_score|score_class }}">{{ avg_score }}</span><span class="lbl">Average score</span></div>
+  <div class="stat card"><span class="num">{{ security_issues }}</span><span class="lbl">Security issues</span></div>
+  <div class="stat card"><span class="num">{{ code_issues }}</span><span class="lbl">Code issues</span></div>
+  <div class="stat card"><span class="num">{{ doc_issues }}</span><span class="lbl">Documentation issues</span></div>
+</div>
+
+<div class="grid two">
+  <div class="card"><h2>Score by repository</h2><div class="chart-box"><canvas id="c-scores"></canvas></div></div>
+  <div class="card"><h2>Issues by category</h2><div class="chart-box"><canvas id="c-categories"></canvas></div></div>
+  <div class="card"><h2>Issues by severity</h2><div class="chart-box"><canvas id="c-severity"></canvas></div></div>
+  <div class="card"><h2>Language distribution</h2><div class="chart-box"><canvas id="c-languages"></canvas></div></div>
+</div>
+
+<div class="card">
+  <h2>Latest analyses</h2>
+  {% include "reviews/_analysis_table.html" with items=latest %}
+  <p><a href="{% url 'history' %}">See all →</a></p>
+</div>
+{{ chart_data|json_script:"chart-data" }}
+{% endif %}
+{% endblock %}
+{% block scripts %}
+{% if has_data %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+<script src="{% static 'js/dashboard.js' %}"></script>
+{% endif %}
+{% endblock %}

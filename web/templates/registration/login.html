@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}Log in{% endblock %}
+{% block main_class %}auth-page{% endblock %}
+{% block content %}
+<section class="auth-layout">
+  <aside class="auth-aside">
+    <span class="eyebrow auth-eyebrow">Your code, in focus</span>
+    <h1>A clearer picture of every repository.</h1>
+    <p>Pick up where you left off. Your reviews, findings, and recommendations are all in one place.</p>
+    <div class="auth-benefits">
+      <div><span>✓</span><p><strong>Review history</strong><small>Keep your repository insights organized</small></p></div>
+      <div><span>✓</span><p><strong>Evidence you can inspect</strong><small>See findings with useful code context</small></p></div>
+      <div><span>✓</span><p><strong>Practical recommendations</strong><small>Know what to improve next</small></p></div>
+    </div>
+    <a class="auth-home-link" href="{% url 'dashboard' %}">← Back to home</a>
+  </aside>
+  <div class="auth-card">
+    <div class="auth-card-heading">
+      <span class="auth-mark">{% include "partials/brand_mark.html" %}</span>
+      <span class="eyebrow">Welcome back</span>
+      <h2>Log in to Repo Intel</h2>
+      <p>Enter your details to continue to your workspace.</p>
+    </div>
+    <form method="post" class="form auth-form">{% csrf_token %}
+      {{ form.non_field_errors }}
+      {% for field in form %}<div class="field"><label for="{{ field.id_for_label }}">{{ field.label }}</label>{{ field }}{{ field.errors }}</div>{% endfor %}
+      <input type="hidden" name="next" value="{{ next }}">
+      <button class="btn btn-full" type="submit">Log in <span aria-hidden="true">→</span></button>
+    </form>
+    <p class="auth-switch"><a href="{% url 'password_reset' %}">Forgot password?</a></p>
+    <p class="auth-switch">New to Repo Intel? <a href="{% url 'register' %}">Create an account</a></p>
+    <p class="auth-privacy">Your workspace is private to your account.</p>
+  </div>
+</section>
+{% endblock %}

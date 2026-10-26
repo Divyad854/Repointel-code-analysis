@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}My reports{% endblock %}
+{% block content %}
+<div class="page-head"><h1>My reports</h1><a class="btn" href="{% url 'analyze' %}">+ New analysis</a></div>
+<div class="card">
+  {% include "reviews/_analysis_table.html" with items=page %}
+  {% if page.paginator.num_pages > 1 %}
+  <div class="pager">
+    {% if page.has_previous %}<a href="?page={{ page.previous_page_number }}">← Newer</a>{% endif %}
+    <span class="muted">Page {{ page.number }} of {{ page.paginator.num_pages }}</span>
+    {% if page.has_next %}<a href="?page={{ page.next_page_number }}">Older →</a>{% endif %}
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

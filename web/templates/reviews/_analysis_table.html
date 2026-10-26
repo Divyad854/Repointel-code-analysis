@@ -1,0 +1,17 @@
+{% load review_extras %}
+<table class="table">
+  <thead><tr><th>Analysis</th><th>Score</th><th>Status</th><th>Date</th><th></th></tr></thead>
+  <tbody>
+  {% for a in items %}
+    <tr>
+      <td><a href="{% url 'report' a.pk %}"><strong>{% if a.is_profile %}@{{ a.owner }} profile{% else %}{{ a.owner }}/{{ a.repo_name }}{% endif %}</strong></a>{% if a.branch %} <span class="muted">@ {{ a.branch }}</span>{% endif %}</td>
+      <td>{% if a.overall_score is not None %}<span class="pill {{ a.overall_score|score_class }}">{{ a.overall_score }}</span>{% else %}—{% endif %}</td>
+      <td><span class="status {{ a.status }}">{{ a.get_status_display }}</span></td>
+      <td class="muted">{{ a.created_at|date:"j M Y, H:i" }}</td>
+      <td class="right"><a href="{% url 'report' a.pk %}">Open</a></td>
+    </tr>
+  {% empty %}
+    <tr><td colspan="5" class="muted">Nothing here yet.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>

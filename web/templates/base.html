@@ -1,0 +1,39 @@
+{% load static %}<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Repo Intel{% endblock %} · Repo Intel</title>
+  <link rel="icon" type="image/svg+xml" href="{% static 'images/repo-intel-mark.svg' %}">
+  <link rel="stylesheet" href="{% static 'css/app.css' %}?v=3">
+</head>
+<body>
+<header class="topbar">
+  <div class="wrap topbar-inner">
+    <a class="brand" href="{% url 'dashboard' %}">{% include "partials/brand_mark.html" %}<span>Repo Intel</span></a>
+    {% if user.is_authenticated %}
+    <nav class="nav">
+      <a href="{% url 'dashboard' %}" class="{% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}">Dashboard</a>
+      <a href="{% url 'analyze' %}" class="{% if request.resolver_match.url_name == 'analyze' %}active{% endif %}">Analyze</a>
+      <a href="{% url 'history' %}" class="{% if request.resolver_match.url_name == 'history' %}active{% endif %}">My reports</a>
+      <a href="{% url 'guidelines' %}" class="{% if request.resolver_match.url_name == 'guidelines' %}active{% endif %}">Guidelines</a>
+      <a href="{% url 'profile' %}" class="{% if request.resolver_match.url_name == 'profile' %}active{% endif %}">Profile</a>
+    </nav>
+    <form method="post" action="{% url 'logout' %}" class="logout">{% csrf_token %}<button class="btn ghost small" type="submit">Log out ({{ user.username }})</button></form>
+    {% else %}
+    <nav class="nav public-nav">
+      <a href="{% url 'dashboard' %}#features">Features</a>
+      <a href="{% url 'login' %}">Log in</a>
+      <a class="btn small" href="{% url 'register' %}">Get started</a>
+    </nav>
+    {% endif %}
+  </div>
+</header>
+<main class="wrap {% block main_class %}{% endblock %}">
+  {% if messages %}<div class="messages">{% for m in messages %}<div class="msg {{ m.tags }}">{{ m }}</div>{% endfor %}</div>{% endif %}
+  {% block content %}{% endblock %}
+</main>
+<footer class="wrap foot">Repo Intel · Understand your codebase with confidence. Findings are suggestions; always review them yourself.</footer>
+{% block scripts %}{% endblock %}
+</body>
+</html>

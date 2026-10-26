@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Profile{% endblock %}
+{% block content %}
+<h1>Profile</h1>
+<div class="grid two">
+  <div class="card">
+    <h2>Account</h2>
+    <form method="post" class="form">{% csrf_token %}
+      <div class="field"><label>Username</label><input value="{{ user.username }}" disabled></div>
+      {% for field in form %}<div class="field"><label for="{{ field.id_for_label }}">{{ field.label }}</label>{{ field }}{{ field.errors }}</div>{% endfor %}
+      <button class="btn" type="submit">Save changes</button>
+    </form>
+    <div class="security-setting">
+      <div>
+        <strong>Password</strong>
+        <p class="muted small">Update the password you use to sign in.</p>
+      </div>
+      <a class="btn ghost small" href="{% url 'password_change' %}">Change password</a>
+    </div>
+  </div>
+  <div class="card">
+    <h2>Your activity</h2>
+    <div class="stats">
+      <div class="stat"><span class="num">{{ analyses }}</span><span class="lbl">Reports</span></div>
+      <div class="stat"><span class="num">{{ avg_score }}</span><span class="lbl">Average score</span></div>
+      <div class="stat"><span class="num">{{ guidelines }}</span><span class="lbl">Guidelines</span></div>
+    </div>
+    <p class="muted">Member since {{ user.date_joined|date:"j M Y" }}</p>
+  </div>
+</div>
+{% endblock %}
