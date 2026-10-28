@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 Severity = Literal["critical", "high", "medium", "low"]
 Category = Literal["quality", "security", "performance", "best_practices", "documentation"]
@@ -47,16 +47,19 @@ class ReviewResult(BaseModel):
 
 
 class CategorizedLLMFinding(LLMFinding):
+    model_config = ConfigDict(extra="forbid")
+
     file: str = Field(description="Exact repository-relative path of the file containing the finding.")
     category: Category = Field(description="One of quality, security, performance, or best_practices.")
     guideline_ref: int | None = Field(
-        default=None,
         description="Guideline passage number if this finding violates a supplied guideline; otherwise null.",
     )
 
 
 class CombinedReviewResult(BaseModel):
-    findings: list[CategorizedLLMFinding] = Field(default_factory=list)
+    model_config = ConfigDict(extra="forbid")
+
+    findings: list[CategorizedLLMFinding]
 
 
 class RagFinding(LLMFinding):

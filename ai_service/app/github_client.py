@@ -62,6 +62,7 @@ class RepoSnapshot:
     default_branch: str = "main"
     description: str = ""
     stars: int = 0
+    is_private: bool = False
     languages_bytes: dict[str, int] = field(default_factory=dict)
     all_paths: list[str] = field(default_factory=list)  # every non-ignored path in the repo
     files: dict[str, str] = field(default_factory=dict)  # path -> text, readable text files only
@@ -114,11 +115,11 @@ def is_text_candidate(path: str) -> bool:
 # ------------------------------------------------------------ zip handling
 def snapshot_from_zip(
     data: bytes, ref: RepoRef, *, default_branch: str = "main", description: str = "",
-    stars: int = 0, languages: dict[str, int] | None = None,
+    stars: int = 0, languages: dict[str, int] | None = None, is_private: bool = False,
 ) -> RepoSnapshot:
     s = get_settings()
     snap = RepoSnapshot(ref=ref, default_branch=default_branch, description=description,
-                        stars=stars, languages_bytes=languages or {})
+                        stars=stars, is_private=is_private, languages_bytes=languages or {})
     total_read = 0
     max_total = 25 * 1024 * 1024
     with zipfile.ZipFile(io.BytesIO(data)) as zf:
@@ -232,6 +233,7 @@ async def fetch_snapshot(ref: RepoRef, access_token: str | None = None) -> RepoS
         return snapshot_from_zip(
             bytes(buf), ref, default_branch=branch, description=info.get("description") or "",
             stars=info.get("stargazers_count") or 0, languages=languages,
+            is_private=bool(info.get("private")),
         )
     except zipfile.BadZipFile as exc:
         raise GitHubError("GitHub returned an unreadable archive.") from exc

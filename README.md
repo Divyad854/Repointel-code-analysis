@@ -27,13 +27,13 @@ docker compose exec web python manage.py migrate
 Open http://localhost:8000, register, and choose **Analyze**.
 FastAPI docs: http://localhost:8001/docs
 
-* `GROQ_API_KEY` (free at console.groq.com) enables the AI reviewers. `GROQ_MODEL` defaults to
-  `openai/gpt-oss-120b`; check Groq's model list if you change it. Without a key the app still runs
-  with rule-based checks only and says so in the report. `LLM_MODE=mock` runs the whole pipeline with a fake LLM.
+* `GROQ_API_KEY` (free at console.groq.com) enables AI-generated code-review findings. `GROQ_MODEL` defaults to
+  `openai/gpt-oss-120b`; check Groq's model list if you change it. Without a key, limited rule-based findings and scores may still be reported, but AI findings and scores are unavailable. The documentation score is calculated from the README checklist. `LLM_MODE=mock` runs the whole pipeline with a fake LLM for development and tests.
   The report note reflects whether an LLM was actually used for that run; restart the AI service after changing `.env`.
-  To limit Groq usage, the default scan reviews at most 10 source files and sends one combined code-review request per run, covering one representative chunk per selected source file and every indexed guideline passage uploaded by that user. Large guideline collections or repositories may exceed the model's request limits; in that case the report warns that the AI review failed and does not claim the guidelines were used.
-  Architecture and summary use local dependency/rule-based fallbacks, while static checks always run.
-  If Groq rate-limits the combined review, the report shows one brief note and keeps its rule-based results.
+  Each repository analysis makes at most one Groq API request, with no automatic retries. The default scan samples up to five evenly distributed code chunks from up to 12 source files and uses 1,200-character chunks. Code and a bounded, representative set of uploaded guideline passages are packed into that single request within `GROQ_TPM_LIMIT` (default 8,000 estimated tokens); output is capped at 1,000 tokens. If Groq rejects the request or the quota is already exhausted, limited rule findings, rule-based quality/security scores, and a documentation score based on the README checklist are shown instead. Successful AI reviews are supplemented with up to five findings from existing deterministic security and quality checks. Rule findings are labeled and counted separately. Performance and best-practices scores are unavailable when AI does not complete. Tune `MAX_SOURCE_FILES`, `MAX_CHUNKS_PER_FILE`, `MAX_CHUNKS_PER_REVIEW`, `CHUNK_SIZE`, and `GROQ_TPM_LIMIT` in `.env`.
+  Private repositories ask Groq for plain JSON without a provider-side response schema, request at most five concise findings with up to 1,600 output tokens, and validate the response locally; public repositories keep strict JSON Schema output.
+  Architecture and summary use local fallbacks based on available repository metadata and AI findings.
+  A repository analysis never splits into additional Groq calls or retries a rejected request. The same capped rule checks supplement successful AI reviews and provide limited findings if AI is unavailable; they do not replace AI findings when AI succeeds.
   When running locally, the AI service reads the repository-root `.env`; its values take precedence over stale shell variables.
   Check `http://localhost:8001/health` to confirm the active model and request limits after restarting the service.
 * Public repository analysis requires only a URL such as `https://github.com/owner/repository`. Repository visibility is checked before unauthenticated analysis; if GitHub reports that the repository is private or inaccessible without authorization, the app redirects to GitHub OAuth instead of starting an unauthenticated job. Create a GitHub OAuth App and set `GITHUB_OAUTH_CLIENT_ID`, `GITHUB_OAUTH_CLIENT_SECRET`, and `GITHUB_OAUTH_REDIRECT_URI` in the root `.env`. Both Django and the AI service need these settings; restart both services after editing `.env`. Use `http://localhost:8000/settings/github/callback/` as the local callback URL. Choose **Private repository**, then authorize with a GitHub account that can access the selected repository. GitHub may skip showing its consent page when that account has already authorized the app, but the OAuth callback still runs. The access token is held in memory for that analysis only and the OAuth grant is revoked after normal completion or a handled failure; credentials are not stored in the database. When developing locally, run the AI service with `uvicorn app.main:app --port 8001 --reload` so code changes are loaded automatically. If the AI service is forcibly terminated before cleanup, revoke Repo Intel's access in GitHub Settings → Applications.
@@ -62,14 +62,13 @@ python manage.py migrate && python manage.py runserver
 2. **Detect technology** — languages by bytes, frameworks/databases/cloud/DevOps from dependency files, Dockerfiles, CI, etc.
 3. **Select & split** — the top N source files (ranked by importance heuristics) are split with LangChain's
    language-aware splitter; lines are numbered so the model can cite them. **Secrets are masked before anything reaches the LLM.**
-4. **Parallel reviewers (LangGraph fan-out)** — quality, security, performance, documentation.
-   Each combines **deterministic rules** (regex secret scanner, `ast`-based complexity checks, risky-pattern rules) with an
-   **LLM reviewer** returning Pydantic-validated structured findings.
+4. **AI reviewer** — bounded Groq requests review all selected code chunks for quality, security, performance,
+   best practices, and uploaded user guidelines, returning Pydantic-validated structured findings. New reports do not
+   include up to five deterministic security/quality findings in addition to AI findings.
 5. **Evidence verification** — an LLM finding is kept only if the code it quotes really exists in the file; its line number
    is corrected from the match. Hallucinated findings are dropped.
-6. **Best practices + RAG (join node)** — all indexed passages from your uploaded guidelines (PDF/txt/md) are supplied
-   to one combined LLM review of a representative chunk from each selected source file. The LLM checks the passages
-   against the code and cites reported violations to their source document ("Team guide, p.3").
+6. **Guidelines** — all indexed passages from your uploaded guidelines (PDF/txt/md) are checked against the selected
+   code chunks in the bounded AI batches. The LLM cites reported violations to their source document ("Team guide, p.3").
 7. **Architecture → Final reviewer** — dedupes findings, computes scores from severity × confidence, and writes the
    executive summary and top-5 recommendations from the actual findings.
 
@@ -86,7 +85,7 @@ cd web && python manage.py test                                                 
 ## Limits / honest notes
 
 * A static review aid, not a penetration test; AI findings are suggestions. Regex secret detection can miss or over-flag.
-* Only the highest-priority files/chunks get LLM review (`MAX_SOURCE_FILES`, `MAX_CHUNKS_PER_REVIEWER`) to stay within Groq free-tier limits; rule checks and the file tree cover the rest.
+* Only the highest-priority files and selected chunks get LLM review (`MAX_SOURCE_FILES`, `MAX_CHUNKS_PER_FILE`) to stay within Groq free-tier limits; technology detection and documentation checklist metadata still use local analysis.
 * Jobs run in the AI service's memory (single worker); if it restarts mid-analysis the report is marked failed and can be re-run.
 * Scanned (image-only) PDFs can't be indexed without OCR. The first guideline upload downloads the ~80 MB embedding model (set `EMBEDDING_BACKEND=hash` to avoid it).
 * Next steps: GitHub App integration with narrower repository permissions, Celery/Redis queue, Semgrep/Bandit integration, PDF export.

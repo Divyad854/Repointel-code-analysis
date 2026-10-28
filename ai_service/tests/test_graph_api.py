@@ -35,9 +35,14 @@ def test_graph_full_run_with_mock_llm():
     issues = {(f["issue"], f["source"]) for f in report["findings"]}
     assert ("HTTP request without timeout", "llm") in issues
     assert not any(f["issue"] == "Hallucinated issue" for f in report["findings"])   # evidence check dropped it
-    assert ("Hardcoded OpenAI API key", "rule") in issues
+    assert all(source in {"llm", "rag", "rule"} for _, source in issues)
+    assert report["stats"]["rule_checks_used"] is True
+    assert 0 < report["stats"]["rule_findings"] <= 5
     assert report["scores"]["security"] < 100
-    assert all(report["scores"][k] is not None for k in report["scores"])
+    assert all(report["scores"][k] is not None for k in ("quality", "security", "performance", "best_practices"))
+    assert report["scores"]["documentation"] == round(
+        sum(report["doc_checklist"].values()) * 100 / len(report["doc_checklist"])
+    )
     assert report["technology"]["languages"][0]["name"] == "Python"
     assert report["architecture"]["backend"] == "FastAPI"
     assert report["summary"] and report["top_recommendations"]
@@ -46,15 +51,102 @@ def test_graph_full_run_with_mock_llm():
     assert "hunter2pass" not in str(report)
     # every finding with a line number points at a real line
     assert report["stats"]["llm_calls"] == 1
+    assert report["stats"]["provider_requests_sent"] == 0
+    assert report["stats"]["chunks_submitted_to_ai"] > 0
+    assert report["stats"]["chunks_submitted_to_ai"] >= min(
+        5, report["stats"]["chunks_available"]
+    )
+    assert report["stats"]["ai_review_completed"] is True
+    assert len(report["ai_reviewed_chunks"]) == report["stats"]["chunks_submitted_to_ai"]
+    assert report["guideline_passages_reviewed"] == 0
+    assert report["stats"]["ai_findings"] >= 1
+    assert 0 < report["stats"]["rule_findings"] <= 5
+    assert report["overall_score"] is not None
 
 
-def test_graph_without_llm_uses_rules_only():
+@pytest.mark.parametrize("is_private, expected_plain_json", [(False, False), (True, True)])
+def test_repository_privacy_selects_ai_output_mode(
+    snapshot, monkeypatch, is_private, expected_plain_json
+):
+    from app.llm import BaseLLM
+    from app.schemas import CombinedReviewResult
+
+    snapshot.is_private = is_private
+
+    async def fetch_snapshot(_ref, _token=None):
+        return snapshot
+
+    monkeypatch.setattr(github_client, "fetch_snapshot", fetch_snapshot)
+
+    class ModeCapturingLLM(BaseLLM):
+        selected_plain_json = None
+        captured_system = ""
+
+        async def structured(self, schema, system, user, *, plain_json=False):
+            self.calls += 1
+            self.selected_plain_json = plain_json
+            self.captured_system = system
+            return CombinedReviewResult(findings=[])
+
+        async def _run(self, schema, system, user):
+            raise AssertionError("structured() should capture the selected mode")
+
+    llm = ModeCapturingLLM(concurrency=1)
+    asyncio.run(run(llm))
+
+    assert llm.selected_plain_json is expected_plain_json
+    assert llm.calls == 1
+    assert ('{"findings": []}' in llm.captured_system) is expected_plain_json
+
+
+def test_graph_without_llm_scores_rule_based_categories_and_documentation_checklist():
     _, final = asyncio.run(run(None))
     report = final["report"]
-    assert report["scores"]["performance"] is None and report["scores"]["best_practices"] is None
+    assert report["scores"]["quality"] is not None
     assert report["scores"]["security"] is not None
-    assert any("No LLM was used for this run" in w for w in report["warnings"])
-    assert report["findings"]
+    assert report["scores"]["performance"] is None
+    assert report["scores"]["best_practices"] is None
+    assert report["scores"]["documentation"] is not None
+    assert report["overall_score"] is not None
+    assert "Rule-based quality, security, and documentation checks scored" in report["summary"]
+    assert any("overall score covers rule-based quality, security, and documentation checks" in w for w in report["warnings"])
+    assert report["stats"]["chunks_submitted_to_ai"] == 0
+    assert report["stats"]["ai_review_completed"] is False
+    assert report["ai_reviewed_chunks"] == []
+    assert 0 < report["stats"]["rule_findings"] <= 5
+    assert all(finding["source"] == "rule" for finding in report["findings"])
+    assert report["stats"]["rule_checks_used"] is True
+
+
+def test_rule_checks_scan_source_files_beyond_ai_selection_limit(snapshot, monkeypatch):
+    from dataclasses import replace
+
+    from app.config import get_settings
+
+    snapshot.files = {
+        "README.md": "# Demo\n",
+        "app/main.py": "def main():\n    return 'selected'\n",
+        "app/unselected.py": "def evaluate(value):\n    return eval(value)\n",
+    }
+    snapshot.all_paths = list(snapshot.files)
+    monkeypatch.setattr(
+        "app.graph.get_settings",
+        lambda: replace(get_settings(), max_source_files=1),
+    )
+    monkeypatch.setattr(
+        "app.graph.file_priority",
+        lambda path, _content: 1 if path == "app/main.py" else 0,
+    )
+
+    _, final = asyncio.run(run(None))
+    report = final["report"]
+
+    assert report["files_reviewed"] == ["app/main.py"]
+    assert report["stats"]["rule_files_scanned"] == 3
+    assert any(
+        finding["file"] == "app/unselected.py" and finding["issue"] == "Use of eval()"
+        for finding in report["findings"]
+    )
 
 
 def test_graph_rate_limit_uses_one_clear_note_and_marks_failed_categories_unscored():
@@ -70,9 +162,62 @@ def test_graph_rate_limit_uses_one_clear_note_and_marks_failed_categories_unscor
 
     assert len(provider_notes) == 1
     assert "rate limit" in provider_notes[0]
+    assert report["scores"]["quality"] is not None
+    assert report["scores"]["security"] is not None
     assert report["scores"]["performance"] is None
     assert report["scores"]["best_practices"] is None
+    assert report["scores"]["documentation"] is not None
+    assert report["overall_score"] is not None
+    assert report["stats"]["rule_findings"] <= 5
+    assert all(finding["source"] == "rule" for finding in report["findings"])
+    assert report["stats"]["chunks_submitted_to_ai"] == 0
+    assert report["stats"]["ai_review_completed"] is False
+    assert report["ai_reviewed_chunks"] == []
     assert "First error:" not in str(report["warnings"])
+
+
+def test_graph_report_includes_safe_provider_failure_detail():
+    from app.llm import BaseLLM, LLMError
+
+    class RejectedRequestLLM(BaseLLM):
+        async def _run(self, schema, system, user):
+            raise LLMError(
+                "Groq model openai/gpt-oss-120b was not found or is no longer available."
+            )
+
+    _, final = asyncio.run(run(RejectedRequestLLM(concurrency=1)))
+    report = final["report"]
+    provider_notes = [warning for warning in report["warnings"] if "Groq" in warning]
+
+    assert len(provider_notes) == 1
+    assert "model openai/gpt-oss-120b was not found" in provider_notes[0]
+    assert report["stats"]["rule_findings"] <= 5
+    assert all(finding["source"] == "rule" for finding in report["findings"])
+    assert report["overall_score"] is not None
+
+
+def test_graph_uses_limited_rule_fallback_only_for_oversized_ai_requests():
+    from app.llm import BaseLLM, LLMRequestTooLarge
+
+    class OversizedRequestLLM(BaseLLM):
+        async def _run(self, schema, system, user):
+            raise LLMRequestTooLarge("Groq rejected the single review request as too large.")
+
+    _, final = asyncio.run(run(OversizedRequestLLM(concurrency=1)))
+    report = final["report"]
+
+    assert report["stats"]["rule_fallback_used"] is True
+    assert report["stats"]["ai_review_completed"] is False
+    assert report["stats"]["ai_findings"] == 0
+    assert report["stats"]["rule_findings"] == len(report["findings"])
+    assert len(report["findings"]) <= 5
+    assert all(finding["source"] == "rule" for finding in report["findings"])
+    assert report["scores"]["quality"] is not None
+    assert report["scores"]["security"] is not None
+    assert report["scores"]["performance"] is None
+    assert report["overall_score"] is not None
+    assert "Rule-based quality, security, and documentation checks scored" in report["summary"]
+    assert any("exceeded Groq's request limit" in warning for warning in report["warnings"])
 
 
 def test_graph_error_branch_ends_early():
@@ -94,6 +239,9 @@ def test_rag_roundtrip_and_graph_uses_guidelines():
     _, final = asyncio.run(run(MockLLM(), user_id=7))
     report = final["report"]
     assert report["guidelines_used"] is True
+    assert report["guideline_passages_reviewed"] == len(docs)
+    assert report["stats"]["ai_review_completed"] is True
+    assert len(report["ai_reviewed_chunks"]) >= 1
     assert report["stats"]["llm_calls"] == 1
     assert "Team Python Guide, p.1" in report["guideline_sources"]
     assert report["stats"]["llm_calls"] == 1
@@ -195,7 +343,7 @@ def test_combined_guideline_review_checks_multiple_files_in_one_call():
     class MultiFileLLM(BaseLLM):
         async def _run(self, schema, system, user):
             assert schema is CombinedReviewResult
-            assert "All uploaded coding-guideline passages" in system
+            assert "Guideline passages:" in system
             assert "File: client/src/App.jsx" in user
             assert "File: server/routes.js" in user
             return CombinedReviewResult(findings=[CategorizedLLMFinding(
@@ -222,7 +370,7 @@ def test_combined_guideline_review_checks_multiple_files_in_one_call():
     document = SimpleNamespace(page_content="Validate query parameters on every endpoint.", metadata={"title": "React Express guide", "page": 1})
     llm = MultiFileLLM(concurrency=1)
 
-    findings, error, succeeded, sources = asyncio.run(review_combined_chunks(
+    findings, error, succeeded, sources, reviewed_chunks, guideline_count = asyncio.run(review_combined_chunks(
         llm,
         chunks,
         files,
@@ -238,6 +386,149 @@ def test_combined_guideline_review_checks_multiple_files_in_one_call():
     assert findings[0].line == 7
     assert findings[0].guideline == "React Express guide, p.1"
     assert sources == ["React Express guide, p.1"]
+    assert len(reviewed_chunks) == 2
+    assert guideline_count == 1
+
+
+def test_combined_review_makes_only_one_call_for_all_chunks():
+    from app.llm import BaseLLM
+    from app.reviewers import Chunk, review_combined_chunks
+    from app.schemas import CombinedReviewResult
+
+    class SizeLimitedLLM(BaseLLM):
+        reviewed_files = []
+
+        async def _run(self, schema, system, user):
+            assert schema is CombinedReviewResult
+            file_names = [
+                line.removeprefix("File: ")
+                for line in user.splitlines()
+                if line.startswith("File: ")
+            ]
+            self.reviewed_files.extend(file_names)
+            return CombinedReviewResult(findings=[])
+
+    chunks = [
+        Chunk(f"src/file_{index}.py", f"{index}: value = {index}", index, 1.0)
+        for index in range(5)
+    ]
+    llm = SizeLimitedLLM(concurrency=1)
+
+    findings, error, succeeded, _, reviewed_chunks, guideline_count = asyncio.run(
+        review_combined_chunks(
+            llm,
+            chunks,
+            {chunk.path: chunk.text for chunk in chunks},
+            [],
+            [],
+            lambda _doc: "guide",
+        )
+    )
+
+    assert error is None and succeeded
+    assert findings == []
+    assert set(llm.reviewed_files) == {chunk.path for chunk in chunks}
+    assert llm.calls == 1
+    assert len(reviewed_chunks) == 5
+    assert guideline_count == 0
+
+
+def test_single_review_request_bounds_large_code_and_guidelines():
+    from types import SimpleNamespace
+
+    from app.llm import BaseLLM
+    from app.reviewers import Chunk, MAX_COMBINED_REVIEW_CHARS, review_combined_chunks
+    from app.schemas import CombinedReviewResult
+
+    class CapturingLLM(BaseLLM):
+        prompt_size = 0
+
+        async def _run(self, schema, system, user):
+            self.prompt_size = len(system) + len(user)
+            return CombinedReviewResult(findings=[])
+
+    chunks = [
+        Chunk(f"src/module_{index}.py", f"{index}: " + "value = 1\n" * 200, 1, 1.0)
+        for index in range(12)
+    ]
+    docs = [
+        SimpleNamespace(
+            page_content=f"Guideline passage {index}. " + "Use secure defaults. " * 100,
+            metadata={"title": "Team guide", "page": index + 1},
+        )
+        for index in range(20)
+    ]
+    llm = CapturingLLM(concurrency=1)
+
+    findings, error, succeeded, _, reviewed_chunks, guideline_count = asyncio.run(
+        review_combined_chunks(
+            llm,
+            chunks,
+            {chunk.path: chunk.text for chunk in chunks},
+            ["Python"],
+            docs,
+            lambda doc: f"{doc.metadata['title']}, p.{doc.metadata['page']}",
+        )
+    )
+
+    assert findings == []
+    assert error is None and succeeded
+    assert llm.calls == 1
+    assert llm.prompt_size <= MAX_COMBINED_REVIEW_CHARS
+    assert 0 < len(reviewed_chunks) < len(chunks)
+    assert 0 < guideline_count < len(docs)
+
+
+def test_single_review_call_preserves_guideline_passage_references():
+    from types import SimpleNamespace
+
+    from app.llm import BaseLLM
+    from app.reviewers import Chunk, review_combined_chunks
+    from app.schemas import CategorizedLLMFinding, CombinedReviewResult
+
+    class GuidelineLimitedLLM(BaseLLM):
+        async def _run(self, schema, system, user):
+            assert schema is CombinedReviewResult
+            if "[2]" in system:
+                return CombinedReviewResult(findings=[CategorizedLLMFinding(
+                    file="src/routes.py",
+                    line=1,
+                    category="best_practices",
+                    severity="medium",
+                    issue="Missing timeout",
+                    evidence="requests.get(url)",
+                    reason="The guideline requires timeouts.",
+                    recommendation="Set a request timeout.",
+                    confidence=0.9,
+                    guideline_ref=2,
+                )])
+            return CombinedReviewResult(findings=[])
+
+    chunks = [Chunk("src/routes.py", "1: requests.get(url)", 1, 1.0)]
+    files = {"src/routes.py": "requests.get(url)"}
+    docs = [
+        SimpleNamespace(page_content="First rule.", metadata={"title": "Guide", "page": 1}),
+        SimpleNamespace(page_content="Always set request timeouts.", metadata={"title": "Guide", "page": 2}),
+    ]
+    llm = GuidelineLimitedLLM(concurrency=1)
+
+    findings, error, succeeded, sources, reviewed_chunks, guideline_count = asyncio.run(
+        review_combined_chunks(
+            llm,
+            chunks,
+            files,
+            [],
+            docs,
+            lambda doc: f"{doc.metadata['title']}, p.{doc.metadata['page']}",
+        )
+    )
+
+    assert error is None and succeeded
+    assert len(findings) == 1
+    assert findings[0].guideline == "Guide, p.2"
+    assert sources == ["Guide, p.1", "Guide, p.2"]
+    assert len(reviewed_chunks) == 1
+    assert guideline_count == 2
 
 
 def test_combined_review_lists_guidelines_checked_even_when_no_violation_found():
@@ -263,7 +554,7 @@ def test_combined_review_lists_guidelines_checked_even_when_no_violation_found()
             metadata={"title": "Team naming rules", "page": 1},
         ),
     ]
-    findings, error, succeeded, sources = asyncio.run(review_combined_chunks(
+    findings, error, succeeded, sources, _, guideline_count = asyncio.run(review_combined_chunks(
         NoViolationLLM(concurrency=1),
         [Chunk("server/routes.js", "7: router.get('/users', handler)", 7, 8.0)],
         {"server/routes.js": "router.get('/users', handler)"},
@@ -275,6 +566,52 @@ def test_combined_review_lists_guidelines_checked_even_when_no_violation_found()
     assert findings == []
     assert error is None and succeeded
     assert sources == ["React Express guide, p.2", "Team naming rules, p.1"]
+    assert guideline_count == 2
+
+
+def test_review_chunk_selection_covers_each_file_and_spreads_across_large_files():
+    from app.reviewers import Chunk, select_chunks_per_file
+
+    chunks = [
+        Chunk("api.py", f"{line}: code", line, 1.0)
+        for line in (1, 20, 40, 60, 80)
+    ] + [
+        Chunk("ui.js", f"{line}: code", line, 1.0)
+        for line in (1, 20, 40)
+    ]
+
+    selected = select_chunks_per_file(chunks, 2)
+
+    assert [(chunk.path, chunk.start_line) for chunk in selected] == [
+        ("api.py", 1),
+        ("api.py", 40),
+        ("api.py", 80),
+        ("ui.js", 1),
+        ("ui.js", 40),
+    ]
+
+
+def test_review_chunk_selection_meets_five_chunk_minimum_for_single_large_file():
+    from app.reviewers import Chunk, select_chunks_per_file
+
+    chunks = [
+        Chunk("app.py", f"{line}: code", line, 1.0)
+        for line in (1, 20, 40, 60, 80, 100, 120)
+    ]
+
+    selected = select_chunks_per_file(chunks, 2)
+
+    assert len(selected) >= 5
+    assert selected[0].start_line == 1
+    assert selected[-1].start_line == 120
+
+
+def test_review_chunk_selection_uses_all_code_when_repository_has_fewer_than_five_chunks():
+    from app.reviewers import Chunk, select_chunks_per_file
+
+    chunks = [Chunk("app.py", f"{line}: code", line, 1.0) for line in (1, 20, 40)]
+
+    assert select_chunks_per_file(chunks, 2) == chunks
 
 
 def test_api_flow(monkeypatch):
@@ -367,6 +704,8 @@ def test_profile_api_analyzes_public_and_private_and_revokes_private_grant(monke
         public_job = client.get(f"/jobs/{public.json()['job_id']}", headers=headers).json()
         assert public_job["status"] == "done"
         assert len(public_job["report"]["repositories"]) == 1
+        assert public_job["report"]["overall_score"] is not None
+        assert public_job["report"]["repositories"][0]["score"] is not None
         assert not revoked
 
         private = client.post("/analyze-profile", headers=headers, json={
@@ -490,7 +829,9 @@ def test_github_revoke_reports_authentication_status_without_retrying(monkeypatc
         async def __aexit__(self, *_args):
             return None
 
-        async def delete(self, *_args, **_kwargs):
+        async def request(self, method, *_args, **kwargs):
+            assert method == "DELETE"
+            assert kwargs["json"] == {"access_token": "one-run-token"}
             self.calls += 1
             return FakeResponse()
 

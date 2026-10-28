@@ -24,6 +24,7 @@ class Settings:
     # LLM
     groq_api_key: str
     groq_model: str
+    groq_tpm_limit: int
     llm_mode: str  # "groq" | "mock" | "off"
     llm_concurrency: int
     # Security between Django and this service
@@ -40,7 +41,8 @@ class Settings:
     max_zip_mb: int
     chunk_size: int
     chunk_overlap: int
-    max_chunks_per_reviewer: int
+    max_chunks_per_file: int
+    max_chunks_per_review: int
     job_timeout_s: int
 
     @property
@@ -54,6 +56,7 @@ class Settings:
         return cls(
             groq_api_key=os.getenv("GROQ_API_KEY", "").strip(),
             groq_model=os.getenv("GROQ_MODEL", "openai/gpt-oss-120b").strip(),
+            groq_tpm_limit=_int("GROQ_TPM_LIMIT", 8000),
             llm_mode=os.getenv("LLM_MODE", "groq").strip().lower(),
             llm_concurrency=_int("LLM_CONCURRENCY", 1),
             internal_token=os.getenv("AI_SERVICE_TOKEN", "change-me"),
@@ -61,12 +64,13 @@ class Settings:
             github_oauth_client_secret=os.getenv("GITHUB_OAUTH_CLIENT_SECRET", "").strip(),
             embedding_backend=os.getenv("EMBEDDING_BACKEND", "onnx").lower(),
             chroma_dir=os.getenv("CHROMA_DIR", "./chroma_data"),
-            max_source_files=_int("MAX_SOURCE_FILES", 10),
+            max_source_files=_int("MAX_SOURCE_FILES", 12),
             max_file_bytes=_int("MAX_FILE_BYTES", 200_000),
             max_zip_mb=_int("MAX_ZIP_MB", 60),
-            chunk_size=_int("CHUNK_SIZE", 3500),
-            chunk_overlap=_int("CHUNK_OVERLAP", 200),
-            max_chunks_per_reviewer=_int("MAX_CHUNKS_PER_REVIEWER", 1),
+            chunk_size=_int("CHUNK_SIZE", 1200),
+            chunk_overlap=_int("CHUNK_OVERLAP", 100),
+            max_chunks_per_file=_int("MAX_CHUNKS_PER_FILE", 2),
+            max_chunks_per_review=_int("MAX_CHUNKS_PER_REVIEW", 5),
             job_timeout_s=_int("JOB_TIMEOUT_S", 900),
         )
 

@@ -108,7 +108,14 @@ def _aggregate_profile(username: str, reports: list[dict], warnings: list[str], 
     for name in score_names:
         values = [report["scores"][name] for report in reports if report["scores"].get(name) is not None]
         scores[name] = round(sum(values) / len(values)) if values else None
-    average_score = round(sum(report["overall_score"] for report in reports) / len(reports))
+    repository_scores = [
+        report["overall_score"] for report in reports
+        if report.get("overall_score") is not None
+    ]
+    average_score = (
+        round(sum(repository_scores) / len(repository_scores))
+        if repository_scores else None
+    )
     repositories = [{
         "name": report["repository"]["name"], "url": report["repository"]["url"],
         "score": report["overall_score"], "summary": report["summary"],
@@ -163,7 +170,14 @@ def _aggregate_profile(username: str, reports: list[dict], warnings: list[str], 
         "technology": technology,
         "architecture": architecture,
         "doc_checklist": doc_checklist,
-        "summary": f"Analyzed {len(reports)} repositories owned by @{username}. Average repository health score: {average_score}/100.",
+        "summary": (
+            f"Analyzed {len(reports)} repositories owned by @{username}. "
+            + (
+                f"Average repository health score: {average_score}/100."
+                if average_score is not None
+                else "AI review did not complete for any repository, so no health score is available."
+            )
+        ),
         "strengths": list(dict.fromkeys(s for report in reports for s in report.get("strengths", [])))[:4],
         "top_recommendations": list(dict.fromkeys(
             item for report in reports for item in report.get("top_recommendations", [])
@@ -201,7 +215,8 @@ async def _revoke_github_grant(access_token: str) -> None:
     for attempt in range(3):
         try:
             async with httpx.AsyncClient(timeout=15) as client:
-                response = await client.delete(
+                response = await client.request(
+                    "DELETE",
                     f"https://api.github.com/applications/{settings.github_oauth_client_id}/grant",
                     auth=(settings.github_oauth_client_id, settings.github_oauth_client_secret),
                     json={"access_token": access_token},

@@ -1,5 +1,18 @@
 // Progress polling for running analyses + severity/category filters for finished reports.
 (function () {
+  document.querySelectorAll(".ring[data-score]").forEach(function (ring) {
+    var score = Number(ring.dataset.score);
+    if (Number.isFinite(score)) {
+      ring.style.setProperty("--p", String(Math.max(0, Math.min(100, score))));
+    }
+  });
+  document.querySelectorAll(".bar i[data-progress]").forEach(function (bar) {
+    var progress = Number(bar.dataset.progress);
+    if (Number.isFinite(progress)) {
+      bar.style.width = Math.max(0, Math.min(100, progress)) + "%";
+    }
+  });
+
   var box = document.getElementById("progress");
   if (box) {
     var url = box.dataset.statusUrl;

@@ -39,9 +39,16 @@
 {% if rep.description or rep.repository.description %}<p class="lead">{{ rep.repository.description }}</p>{% endif %}
 
 <section class="card hero">
-  <div class="ring {{ analysis.overall_score|score_class }}" style="--p: {{ analysis.overall_score }}"><span>{{ analysis.overall_score }}</span><small>/ 100</small></div>
+  {% if analysis.overall_score is not None %}
+  <div class="ring {{ analysis.overall_score|score_class }}" data-score="{{ analysis.overall_score }}"><span>{{ analysis.overall_score }}</span><small>{% if rep.stats.rule_checks_used and not rep.stats.ai_review_completed %}rule score{% else %}/ 100{% endif %}</small></div>
+  {% else %}
+  <div class="ring muted" data-score="0"><span>—</span><small>AI unavailable</small></div>
+  {% endif %}
   <div class="hero-text">
     <h2>Overall score</h2>
+    {% if rep.stats.rule_checks_used and not rep.stats.ai_review_completed %}
+      <p class="muted small">Rule-based score: quality, security, and documentation checks. Performance and best-practices scores require AI review.</p>
+    {% endif %}
     <p>{{ rep.summary }}</p>
     <div class="sev-row">
       <span class="sev critical">{{ rep.severity_counts.critical }} critical</span>
@@ -55,7 +62,7 @@
 <div class="grid five scores">
   {% for label, value in score_cards %}
   <div class="card score"><span class="num {{ value|score_class }}">{{ value|score_text }}</span><span class="lbl">{{ label }}</span>
-    <div class="bar"><i class="{{ value|score_class }}" style="width: {{ value|default:0 }}%"></i></div></div>
+    <div class="bar"><i class="{{ value|score_class }}" data-progress="{{ value|default:0 }}"></i></div></div>
   {% endfor %}
 </div>
 
@@ -96,7 +103,7 @@
   <section class="card">
     <h2>Technologies</h2>
     {% for lang in rep.technology.languages %}
-      <div class="lang"><span>{{ lang.name }}</span><div class="bar"><i style="width: {{ lang.percent }}%"></i></div><span class="muted">{{ lang.percent }}%</span></div>
+      <div class="lang"><span>{{ lang.name }}</span><div class="bar"><i data-progress="{{ lang.percent }}"></i></div><span class="muted">{{ lang.percent }}%</span></div>
     {% empty %}<p class="muted">No languages detected.</p>{% endfor %}
     {% for group, names in tech_groups %}
       <div class="chips"><span class="chip-label">{{ group|capfirst }}</span>{% for n in names %}<span class="chip">{{ n }}</span>{% endfor %}</div>
@@ -129,12 +136,12 @@
       <h3>AI review included your guidelines</h3>
       <p class="muted small">
         {% if rep.guideline_sources %}
-          Compared against: {{ rep.guideline_sources|join:" · " }}.
+          The AI review included {{ rep.guideline_passages_reviewed }} indexed guideline passage{{ rep.guideline_passages_reviewed|pluralize }}: {{ rep.guideline_sources|join:" · " }}.
         {% endif %}
         {% if guideline_findings %}
           {{ guideline_findings|length }} guideline violation{{ guideline_findings|length|pluralize }} reported in the reviewed code.
         {% else %}
-          No guideline violations were detected in the reviewed code. This result covers only the files and code chunks reviewed above.
+          No guideline violations were detected in the reviewed code chunks. This result covers only the samples listed below, not the entire repository.
         {% endif %}
       </p>
     {% endif %}
@@ -158,7 +165,6 @@
     <header>
       <span class="sev {{ f.severity }}">{{ f.get_severity_display }}</span>
       <span class="cat">{{ f.get_category_display }}</span>
-      <span class="src {{ f.source }}">{% if f.source == 'rule' %}rule-based{% elif f.source == 'rag' %}your guidelines{% else %}AI review{% endif %}</span>
       <span class="loc"><code>{{ f.file }}{% if f.line %}:{{ f.line }}{% endif %}</code></span>
     </header>
     <h3>{{ f.issue }}</h3>
@@ -174,11 +180,6 @@
   <p class="muted" id="no-match" hidden>No findings match these filters.</p>
 </section>
 
-<details class="card">
-  <summary>Files reviewed in depth ({{ rep.files_reviewed|length }} of {{ rep.stats.files_in_repo }} files in the repository)</summary>
-  <ul class="files">{% for p in rep.files_reviewed %}<li><code>{{ p }}</code></li>{% endfor %}</ul>
-  <p class="muted small">{{ rep.stats.llm_calls }} AI calls{% if rep.stats.duration_s %} · {{ rep.stats.duration_s }}s{% endif %}. Secrets are masked before any code is sent to the AI.</p>
-</details>
 {% endif %}
 {% endblock %}
 {% block scripts %}<script src="{% static 'js/report.js' %}"></script>{% endblock %}

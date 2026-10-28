@@ -172,7 +172,20 @@ def sync_analysis(analysis: Analysis) -> Analysis:
 
 @transaction.atomic
 def save_report(analysis: Analysis, report: dict) -> None:
-    findings = report.pop("findings", [])
+    stats = report.setdefault("stats", {})
+    rule_checks_used = bool(
+        stats.get("rule_checks_used") or stats.get("rule_fallback_used")
+    )
+    findings = [
+        finding for finding in report.pop("findings", [])
+        if finding.get("source", "llm") in {"llm", "rag"}
+        or (rule_checks_used and finding.get("source") == "rule")
+    ]
+    stats["ai_findings"] = sum(
+        finding.get("source", "llm") in {"llm", "rag"}
+        for finding in findings
+    )
+    stats["rule_findings"] = sum(finding.get("source") == "rule" for finding in findings)
     analysis.report = report
     analysis.scores = report.get("scores", {})
     analysis.overall_score = report.get("overall_score")

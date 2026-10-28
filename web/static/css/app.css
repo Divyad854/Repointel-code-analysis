@@ -79,7 +79,7 @@ select { width: auto; } .form select { width: 100%; } textarea { resize: vertica
 .error-card { border-color: var(--bad); }
 
 .hero { display: flex; gap: 26px; align-items: center; }
-.ring { --c: var(--good); width: 120px; height: 120px; border-radius: 50%; flex: none; display: grid; place-items: center; position: relative;
+.ring { --c: var(--good); --p: 0; width: 120px; height: 120px; border-radius: 50%; flex: none; display: grid; place-items: center; position: relative;
   background: conic-gradient(var(--c) calc(var(--p) * 1%), var(--border) 0); }
 .ring.ok { --c: var(--ok); } .ring.bad { --c: var(--bad); } .ring.na { --c: var(--muted); }
 .ring::before { content: ""; position: absolute; inset: 10px; border-radius: 50%; background: var(--card); }
@@ -106,8 +106,7 @@ select { width: auto; } .form select { width: 100%; } textarea { resize: vertica
 .finding { border: 1px solid var(--border); border-left: 5px solid var(--low); border-radius: 10px; padding: 14px 16px; margin-top: 14px; }
 .finding.critical { border-left-color: var(--critical); } .finding.high { border-left-color: var(--high); } .finding.medium { border-left-color: var(--medium); }
 .finding[hidden] { display: none; } .finding header { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; } .finding h3 { margin: 8px 0; }
-.finding p { margin: 6px 0; } .loc { margin-left: auto; } .cat, .src { font-size: .78rem; color: var(--muted); border: 1px solid var(--border); border-radius: 999px; padding: 1px 9px; }
-.src.rag { color: var(--brand); border-color: var(--brand); }
+.finding p { margin: 6px 0; } .loc { margin-left: auto; } .cat { font-size: .78rem; color: var(--muted); border: 1px solid var(--border); border-radius: 999px; padding: 1px 9px; }
 .evidence { background: var(--code-bg); color: var(--code-text); border-radius: 8px; padding: 10px 12px; overflow-x: auto; margin: 8px 0; white-space: pre-wrap; word-break: break-word; }
 .reco { background: color-mix(in srgb, var(--good) 8%, transparent); padding: 8px 10px; border-radius: 8px; }
 details.card summary { cursor: pointer; font-weight: 600; } .files { columns: 2; padding-left: 18px; margin-top: 10px; }

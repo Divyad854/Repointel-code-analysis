@@ -15,6 +15,7 @@ from .jobs import JOBS, create_job, run_job, run_profile_job
 from .schemas import AnalyzeRequest, AnalyzeResponse, GuidelineResponse, ProfileAnalyzeRequest
 
 logging.basicConfig(level=logging.INFO)
+logging.getLogger("httpx").setLevel(logging.WARNING)
 
 app = FastAPI(title="Repo Intel AI Service", version="1.0.0")
 MAX_GUIDELINE_BYTES = 10 * 1024 * 1024
@@ -34,7 +35,8 @@ async def health() -> dict:
         "llm_enabled": s.llm_enabled,
         "llm_model": s.groq_model if s.llm_mode == "groq" else None,
         "max_source_files": s.max_source_files,
-        "max_chunks_per_reviewer": s.max_chunks_per_reviewer,
+        "max_chunks_per_file": s.max_chunks_per_file,
+        "max_chunks_per_reviewer": s.max_chunks_per_file,
         "llm_concurrency": s.llm_concurrency,
         "embeddings": s.embedding_backend,
     }

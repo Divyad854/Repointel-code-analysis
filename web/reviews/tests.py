@@ -29,14 +29,23 @@ REPORT = {
     "top_recommendations": ["Rotate the exposed key"],
     "findings": [
         {"file": "app/main.py", "line": 4, "category": "security", "severity": "critical", "issue": "Hardcoded OpenAI API key",
-         "evidence": 'API_KEY = "sk-a****"', "reason": "Anyone can use it.", "recommendation": "Use env vars.", "confidence": 0.95, "source": "rule", "guideline": None},
+         "evidence": 'API_KEY = "sk-a****"', "reason": "Anyone can use it.", "recommendation": "Use env vars.", "confidence": 0.95, "source": "llm", "guideline": None},
         {"file": "app/main.py", "line": 8, "category": "quality", "severity": "high", "issue": "Bare except",
          "evidence": "except:", "reason": "Hides bugs.", "recommendation": "Catch specific errors.", "confidence": 0.9, "source": "rag", "guideline": "Team guide, p.2"},
         {"file": "README.md", "line": None, "category": "security", "severity": "medium", "issue": "Something",
          "evidence": "", "reason": "", "recommendation": "Fix it.", "confidence": 0.5, "source": "llm"},
     ],
-    "files_reviewed": ["app/main.py"], "guidelines_used": True, "guideline_sources": ["Team guide, p.2"], "warnings": ["A warning"],
-    "stats": {"files_in_repo": 5, "files_reviewed": 1, "chunks_available": 2, "llm_calls": 7, "duration_s": 12.3},
+    "files_reviewed": ["app/main.py"], "guidelines_used": True, "guideline_passages_reviewed": 3,
+    "guideline_sources": ["Team guide, p.2"], "ai_reviewed_chunks": [
+        {"file": "app/main.py", "start_line": 1, "end_line": 25},
+        {"file": "app/main.py", "start_line": 40, "end_line": 65},
+    ], "warnings": ["A warning"],
+    "stats": {
+        "files_in_repo": 5, "files_reviewed": 1, "chunks_available": 2,
+        "chunks_submitted_to_ai": 2, "ai_review_completed": True,
+        "ai_findings": 3, "rule_findings": 0, "llm_calls": 1,
+        "provider_requests_sent": 1, "rule_files_scanned": 5, "duration_s": 12.3,
+    },
 }
 
 
@@ -336,9 +345,126 @@ class ReportAndDashboardTests(Base):
         a = self.done()
         r = self.client.get(reverse("report", args=[a.pk]))
         self.assertEqual(r.status_code, 200)
-        for text in ("Hardcoded OpenAI API key", "Team guide, p.2", "Rotate the exposed key", "FastAPI", "Python", "Installation steps", "A warning", "your guidelines", "1 guideline violation reported"):
+        for text in (
+            "Hardcoded OpenAI API key", "Team guide, p.2", "Rotate the exposed key",
+            "FastAPI", "Python", "Installation steps", "A warning", "your guidelines",
+            "1 guideline violation reported", "3 indexed guideline passages",
+        ):
             self.assertContains(r, text)
+        for text in (
+            "AI review coverage",
+            "code chunks were successfully reviewed by AI",
+            "Source files selected for analysis",
+            "provider request sent to the AI provider",
+        ):
+            self.assertNotContains(r, text)
+        self.assertContains(r, 'data-score="72"')
+        self.assertContains(r, 'data-progress="83"')
+        self.assertContains(r, 'data-progress="90.0"')
+        self.assertNotContains(r, "Rule-based checks scanned")
         self.assertNotContains(r, "No guideline violations were detected")
+        self.assertNotContains(r, "AI code review did not complete successfully")
+        self.assertNotContains(r, "rule-based")
+
+    def test_save_report_discards_non_ai_findings(self):
+        import copy
+
+        report = copy.deepcopy(REPORT)
+        report["findings"].append({
+            "file": "app/main.py", "line": 12, "category": "quality",
+            "severity": "low", "issue": "Rule-only issue", "evidence": "pass",
+            "reason": "Created by a deterministic rule.",
+            "recommendation": "Review it.", "confidence": 0.8, "source": "rule",
+        })
+        report["findings"].append({
+            "file": "app/main.py", "line": 13, "category": "quality",
+            "severity": "low", "issue": "Unknown-source issue", "evidence": "pass",
+            "reason": "Source is not recognized as an AI reviewer.",
+            "recommendation": "Review it.", "confidence": 0.8, "source": "other",
+        })
+        analysis = self.make()
+
+        services.save_report(analysis, report)
+
+        self.assertEqual(
+            set(analysis.findings.values_list("source", flat=True)),
+            {"llm", "rag"},
+        )
+        self.assertEqual(analysis.report["stats"]["ai_findings"], 3)
+        self.assertEqual(analysis.report["stats"]["rule_findings"], 0)
+
+    def test_save_report_keeps_limited_rule_findings_for_fallback_report(self):
+        import copy
+
+        report = copy.deepcopy(REPORT)
+        report["stats"]["rule_fallback_used"] = True
+        report["findings"] = [{
+            "file": "app/main.py", "line": 12, "category": "quality",
+            "severity": "low", "issue": "Rule fallback issue", "evidence": "pass",
+            "reason": "Detected by a limited static check.",
+            "recommendation": "Review it.", "confidence": 0.8, "source": "rule",
+        }]
+        analysis = self.make()
+
+        services.save_report(analysis, report)
+
+        self.assertEqual(
+            list(analysis.findings.values_list("source", flat=True)),
+            ["rule"],
+        )
+        self.assertEqual(analysis.report["stats"]["rule_findings"], 1)
+        self.assertEqual(analysis.report["stats"]["ai_findings"], 0)
+
+        response = self.client.get(reverse("report", args=[analysis.pk]))
+
+        self.assertContains(response, "Rule fallback issue")
+        self.assertNotContains(response, "Rule-based check")
+
+    def test_save_report_keeps_capped_rule_findings_alongside_ai_findings(self):
+        import copy
+
+        report = copy.deepcopy(REPORT)
+        report["stats"]["rule_checks_used"] = True
+        report["findings"].append({
+            "file": "app/main.py", "line": 12, "category": "security",
+            "severity": "high", "issue": "Rule security check",
+            "evidence": "subprocess.run(cmd, shell=True)",
+            "reason": "Shell execution can be unsafe.",
+            "recommendation": "Avoid shell execution.", "confidence": 0.8, "source": "rule",
+        })
+        analysis = self.make()
+
+        services.save_report(analysis, report)
+
+        self.assertEqual(
+            set(analysis.findings.values_list("source", flat=True)),
+            {"llm", "rag", "rule"},
+        )
+        self.assertEqual(analysis.report["stats"]["ai_findings"], 3)
+        self.assertEqual(analysis.report["stats"]["rule_findings"], 1)
+
+    def test_legacy_non_ai_findings_are_hidden_from_report(self):
+        analysis = self.make(status="done")
+        services.save_report(analysis, {
+            **{key: value for key, value in REPORT.items() if key != "findings"},
+            "findings": [],
+        })
+        Finding.objects.create(
+            analysis=analysis, file="app/main.py", line=12, category="quality",
+            severity="low", issue="Legacy rule-only issue", source="rule",
+            recommendation="Review it.",
+        )
+        Finding.objects.create(
+            analysis=analysis, file="app/main.py", line=13, category="quality",
+            severity="low", issue="Legacy unknown-source issue", source="other",
+            recommendation="Review it.",
+        )
+
+        response = self.client.get(reverse("report", args=[analysis.pk]))
+
+        self.assertNotContains(response, "Legacy rule-only issue")
+        self.assertNotContains(response, "Legacy unknown-source issue")
+        self.assertNotContains(response, "rule-based")
 
     def test_report_does_not_claim_guideline_compliance_when_none_reported(self):
         import copy
@@ -353,7 +479,7 @@ class ReportAndDashboardTests(Base):
 
         self.assertContains(
             response,
-            "No guideline violations were detected in the reviewed code. This result covers only the files and code chunks reviewed above.",
+            "No guideline violations were detected in the reviewed code chunks. This result covers only the samples listed below, not the entire repository.",
         )
 
     def test_report_hides_only_github_revocation_warning(self):
@@ -406,13 +532,36 @@ class ReportAndDashboardTests(Base):
 
     def test_dashboard(self):
         self.client.get(reverse("dashboard"))
-        self.done()
+        analysis = self.done()
+        Finding.objects.create(
+            analysis=analysis, file="app/main.py", line=20, category="security",
+            severity="critical", issue="Legacy rule-only issue", source="rule",
+            recommendation="Review it.",
+        )
         r = self.client.get(reverse("dashboard"))
         self.assertEqual(r.status_code, 200)
         ctx = r.context
         self.assertEqual((ctx["analyzed"], ctx["avg_score"], ctx["security_issues"], ctx["code_issues"]), (1, 72, 2, 1))
         self.assertEqual(ctx["chart_data"]["severity"]["values"], [1, 1, 1, 0])
         self.assertEqual(ctx["chart_data"]["languages"]["labels"][0], "Python")
+
+    def test_dashboard_counts_rule_findings_for_explicit_rule_check_reports(self):
+        import copy
+
+        fallback_report = copy.deepcopy(REPORT)
+        fallback_report["stats"]["rule_checks_used"] = True
+        fallback_report["findings"] = [{
+            "file": "app/main.py", "line": 12, "category": "security",
+            "severity": "high", "issue": "Fallback finding",
+            "recommendation": "Review it.", "source": "rule",
+        }]
+        analysis = self.make(status="done")
+        services.save_report(analysis, fallback_report)
+
+        response = self.client.get(reverse("dashboard"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["security_issues"], 1)
 
     def test_history_delete_rerun(self):
         a = self.done()

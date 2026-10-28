@@ -4,7 +4,7 @@ from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
-from django.db.models import Avg, Count
+from django.db.models import Avg, Count, Q
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_GET, require_POST
@@ -36,7 +36,17 @@ def dashboard(request):
         return render(request, "reviews/home.html")
 
     done = Analysis.objects.filter(user=request.user, status=Analysis.Status.DONE)
-    findings = Finding.objects.filter(analysis__in=done)
+    findings = Finding.objects.filter(analysis__in=done).filter(
+        Q(source__in=["llm", "rag"])
+        | Q(
+            source="rule",
+            analysis__report__stats__rule_checks_used=True,
+        )
+        | Q(
+            source="rule",
+            analysis__report__stats__rule_fallback_used=True,
+        )
+    )
     by_category = {r["category"]: r["n"] for r in findings.values("category").annotate(n=Count("id"))}
     by_severity = {r["severity"]: r["n"] for r in findings.values("severity").annotate(n=Count("id"))}
 
@@ -142,8 +152,17 @@ def report(request, pk):
     }
     if analysis.status == Analysis.Status.DONE:
         rep = analysis.report
-        findings = list(analysis.findings.all())
+        rule_checks_used = bool(
+            rep.get("stats", {}).get("rule_checks_used")
+            or rep.get("stats", {}).get("rule_fallback_used")
+        )
+        findings = [
+            finding for finding in analysis.findings.all()
+            if finding.source in {"llm", "rag"}
+            or (rule_checks_used and finding.source == "rule")
+        ]
         guideline_findings = [finding for finding in findings if finding.source == "rag"]
+        ai_findings = [finding for finding in findings if finding.source in {"llm", "rag"}]
         displayed_warnings = [
             warning for warning in rep.get("warnings", [])
             if "GitHub access could not be revoked automatically" not in warning
@@ -153,6 +172,8 @@ def report(request, pk):
             "displayed_warnings": displayed_warnings,
             "findings": findings,
             "guideline_findings": guideline_findings,
+            "ai_findings": ai_findings,
+            "rule_checks_used": rule_checks_used,
             "score_cards": [
                 ("Code quality", analysis.scores.get("quality")),
                 ("Security", analysis.scores.get("security")),
