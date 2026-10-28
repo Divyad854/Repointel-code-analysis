@@ -534,6 +534,16 @@ class ReportAndDashboardTests(Base):
         self.client.get(reverse("dashboard"))
         analysis = self.done()
         Finding.objects.create(
+            analysis=analysis, file="app/main.py", line=24, category="performance",
+            severity="medium", issue="Repeated database query", source="llm",
+            recommendation="Reuse the fetched result.",
+        )
+        Finding.objects.create(
+            analysis=analysis, file="README.md", line=None, category="documentation",
+            severity="low", issue="Missing installation steps", source="llm",
+            recommendation="Document the setup process.",
+        )
+        Finding.objects.create(
             analysis=analysis, file="app/main.py", line=20, category="security",
             severity="critical", issue="Legacy rule-only issue", source="rule",
             recommendation="Review it.",
@@ -541,9 +551,14 @@ class ReportAndDashboardTests(Base):
         r = self.client.get(reverse("dashboard"))
         self.assertEqual(r.status_code, 200)
         ctx = r.context
-        self.assertEqual((ctx["analyzed"], ctx["avg_score"], ctx["security_issues"], ctx["code_issues"]), (1, 72, 2, 1))
-        self.assertEqual(ctx["chart_data"]["severity"]["values"], [1, 1, 1, 0])
-        self.assertEqual(ctx["chart_data"]["languages"]["labels"][0], "Python")
+        self.assertEqual((ctx["analyzed"], ctx["avg_score"], ctx["security_issues"], ctx["code_issues"]), (1, 72, 2, 2))
+        self.assertEqual((ctx["performance_issues"], ctx["doc_issues"]), (1, 1))
+        self.assertEqual(ctx["chart_data"]["categories"]["values"], [1, 2, 1, 0, 1])
+        self.assertNotContains(r, "Language distribution")
+        self.assertNotContains(r, "Technologies detected across reports")
+        self.assertEqual(ctx["chart_data"]["severity"]["values"], [1, 1, 2, 1])
+        self.assertNotIn("languages", ctx["chart_data"])
+        self.assertNotIn("technologies", ctx["chart_data"])
 
     def test_dashboard_counts_rule_findings_for_explicit_rule_check_reports(self):
         import copy
@@ -562,6 +577,61 @@ class ReportAndDashboardTests(Base):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.context["security_issues"], 1)
+
+    def test_dashboard_shows_average_performance_and_documentation_scores(self):
+        import copy
+
+        self.done()
+        second_report = copy.deepcopy(REPORT)
+        second_report["scores"]["performance"] = 60
+        second_report["scores"]["documentation"] = None
+        second_analysis = self.make(status="done", job_id="job2")
+        services.save_report(second_analysis, second_report)
+
+        response = self.client.get(reverse("dashboard"))
+
+        self.assertEqual(response.context["avg_performance_score"], 60)
+        self.assertEqual(response.context["avg_documentation_score"], 82)
+        self.assertContains(response, "Performance score")
+        self.assertContains(response, "Documentation score")
+        self.assertContains(response, 'data-metric="avg_performance_score">60')
+        self.assertContains(response, 'data-metric="avg_documentation_score">82')
+
+    def test_dashboard_data_returns_live_saved_metrics_and_charts(self):
+        analysis = self.done()
+        Finding.objects.create(
+            analysis=analysis, file="app/main.py", line=24, category="performance",
+            severity="medium", issue="Repeated database query", source="llm",
+            recommendation="Reuse the fetched result.",
+        )
+
+        response = self.client.get(reverse("dashboard_data"))
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data["analyzed"], 1)
+        self.assertEqual(data["performance_issues"], 1)
+        self.assertEqual(data["chart_data"]["categories"]["values"], [1, 2, 1, 0, 0])
+        self.assertEqual(data["chart_data"]["scores"]["labels"], ["u/demo"])
+
+    def test_dashboard_does_not_render_language_or_technology_charts(self):
+        self.done()
+        response = self.client.get(reverse("dashboard"))
+        self.assertNotContains(response, "Language distribution")
+        self.assertNotContains(response, "Technologies detected across reports")
+
+    def test_dashboard_data_syncs_running_analysis_before_refresh(self):
+        import copy
+
+        analysis = self.make(status="running")
+        report = copy.deepcopy(REPORT)
+        with mock.patch("reviews.services.get_job", return_value={"status": "done", "report": report}):
+            response = self.client.get(reverse("dashboard_data"))
+
+        analysis.refresh_from_db()
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(analysis.status, Analysis.Status.DONE)
+        self.assertEqual(response.json()["analyzed"], 1)
 
     def test_history_delete_rerun(self):
         a = self.done()

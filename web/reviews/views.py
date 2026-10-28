@@ -1,5 +1,3 @@
-from collections import defaultdict
-
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -31,11 +29,8 @@ PIPELINE = [
 ]
 
 
-def dashboard(request):
-    if not request.user.is_authenticated:
-        return render(request, "reviews/home.html")
-
-    done = Analysis.objects.filter(user=request.user, status=Analysis.Status.DONE)
+def _dashboard_context(user):
+    done = Analysis.objects.filter(user=user, status=Analysis.Status.DONE)
     findings = Finding.objects.filter(analysis__in=done).filter(
         Q(source__in=["llm", "rag"])
         | Q(
@@ -50,27 +45,31 @@ def dashboard(request):
     by_category = {r["category"]: r["n"] for r in findings.values("category").annotate(n=Count("id"))}
     by_severity = {r["severity"]: r["n"] for r in findings.values("severity").annotate(n=Count("id"))}
 
-    recent = list(done.order_by("-created_at")[:8])[::-1]
-    lang_totals: dict[str, float] = defaultdict(float)
-    langs_seen = 0
-    for a in done.order_by("-created_at")[:20]:
-        languages = (a.report.get("technology") or {}).get("languages") or []
-        if languages:
-            langs_seen += 1
-        for lang in languages:
-            lang_totals[lang["name"]] += lang["percent"]
-    languages = sorted(
-        ({"name": n, "percent": round(v / max(langs_seen, 1), 1)} for n, v in lang_totals.items()),
-        key=lambda x: x["percent"], reverse=True)[:8]
+    category_scores: dict[str, list[float]] = {"performance": [], "documentation": []}
+    for scores in done.values_list("scores", flat=True):
+        for category, values in category_scores.items():
+            score = (scores or {}).get(category)
+            if isinstance(score, (int, float)) and not isinstance(score, bool):
+                values.append(score)
 
+    average_category_scores = {
+        category: round(sum(values) / len(values)) if values else None
+        for category, values in category_scores.items()
+    }
+
+    recent = list(done.order_by("-created_at")[:8])[::-1]
     context = {
         "analyzed": done.count(),
         "avg_score": round(done.aggregate(a=Avg("overall_score"))["a"] or 0),
         "security_issues": by_category.get("security", 0),
+        "performance_issues": by_category.get("performance", 0),
         "code_issues": sum(by_category.get(c, 0) for c in ("quality", "performance", "best_practices")),
         "doc_issues": by_category.get("documentation", 0),
-        "active": Analysis.objects.filter(user=request.user, status__in=[Analysis.Status.QUEUED, Analysis.Status.RUNNING]).count(),
-        "latest": Analysis.objects.filter(user=request.user)[:5],
+        "avg_performance_score": average_category_scores["performance"],
+        "avg_documentation_score": average_category_scores["documentation"],
+        "active": Analysis.objects.filter(user=user, status__in=[Analysis.Status.QUEUED, Analysis.Status.RUNNING]).count(),
+        "has_data": done.exists(),
+        "latest": Analysis.objects.filter(user=user)[:5],
         "chart_data": {
             "scores": {
                 "labels": [f"@{a.owner}" if a.is_profile else f"{a.owner}/{a.repo_name}" for a in recent],
@@ -82,11 +81,46 @@ def dashboard(request):
             },
             "severity": {"labels": ["Critical", "High", "Medium", "Low"],
                          "values": [by_severity.get(k, 0) for k in ("critical", "high", "medium", "low")]},
-            "languages": {"labels": [l["name"] for l in languages], "values": [l["percent"] for l in languages]},
         },
-        "has_data": done.exists(),
     }
-    return render(request, "reviews/dashboard.html", context)
+    return context
+
+
+def dashboard(request):
+    if not request.user.is_authenticated:
+        return render(request, "reviews/home.html")
+    return render(request, "reviews/dashboard.html", _dashboard_context(request.user))
+
+
+@login_required
+@require_GET
+def dashboard_data(request):
+    active = Analysis.objects.filter(
+        user=request.user,
+        status__in=[Analysis.Status.QUEUED, Analysis.Status.RUNNING],
+    )
+    try:
+        for analysis in active:
+            sync_analysis(analysis)
+    except AIServiceError as exc:
+        return JsonResponse({"error": str(exc)}, status=503)
+
+    context = _dashboard_context(request.user)
+    response = JsonResponse({
+        "analyzed": context["analyzed"],
+        "avg_score": context["avg_score"],
+        "security_issues": context["security_issues"],
+        "code_issues": context["code_issues"],
+        "performance_issues": context["performance_issues"],
+        "doc_issues": context["doc_issues"],
+        "avg_performance_score": context["avg_performance_score"],
+        "avg_documentation_score": context["avg_documentation_score"],
+        "active": context["active"],
+        "has_data": context["has_data"],
+        "chart_data": context["chart_data"],
+    })
+    response["Cache-Control"] = "no-store"
+    return response
 
 
 @login_required
