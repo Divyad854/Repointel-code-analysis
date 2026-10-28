@@ -76,8 +76,8 @@ def _dashboard_context(user):
                 "values": [a.overall_score for a in recent],
             },
             "categories": {
-                "labels": ["Quality", "Security", "Performance", "Best practices", "Documentation"],
-                "values": [by_category.get(k, 0) for k in ("quality", "security", "performance", "best_practices", "documentation")],
+                "labels": ["Quality", "Security", "Best practices"],
+                "values": [by_category.get(k, 0) for k in ("quality", "security",  "best_practices", )],
             },
             "severity": {"labels": ["Critical", "High", "Medium", "Low"],
                          "values": [by_severity.get(k, 0) for k in ("critical", "high", "medium", "low")]},
