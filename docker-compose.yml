@@ -1,45 +1,55 @@
+
 services:
   db:
     image: postgres:16-alpine
+    restart: unless-stopped
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-repointel}
       POSTGRES_USER: ${POSTGRES_USER:-repointel}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-repointel}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
-      interval: 5s
+      interval: 10s
       timeout: 5s
       retries: 10
 
   ai_service:
     build: ./ai_service
+    restart: unless-stopped
     env_file: .env
     environment:
       CHROMA_DIR: /data/chroma
     volumes:
       - chroma:/data/chroma
-    ports:
-      - "8001:8001"   # FastAPI docs at http://localhost:8001/docs
+      - modelcache:/home/appuser/.cache
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8001/health', timeout=4)"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
 
   web:
     build: ./web
+    restart: unless-stopped
     env_file: .env
     environment:
       POSTGRES_HOST: db
       POSTGRES_DB: ${POSTGRES_DB:-repointel}
       POSTGRES_USER: ${POSTGRES_USER:-repointel}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-repointel}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       AI_SERVICE_URL: http://ai_service:8001
     depends_on:
       db:
         condition: service_healthy
       ai_service:
-        condition: service_started
+        condition: service_healthy
     ports:
-      - "8000:8000"
+      - "80:8000"
 
 volumes:
   pgdata:
   chroma:
+  modelcache:
