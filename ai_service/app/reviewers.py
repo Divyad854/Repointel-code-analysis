@@ -1,4 +1,37 @@
-"""Building blocks used by the graph nodes: chunking, prompts, LLM review, evidence verification, scoring."""
+"""Building blocks used by the graph nodes: chunking, prompts, LLM review, evidence verification, scoring.
+Quality	Readability, duplication, complexity, bugs
+Security	SQL injection, XSS, authentication, secrets
+Performance	N+1 queries, loops, unnecessary API calls
+Best practices	Framework conventions, typing, testing, logging
+It checks:
+- Code quality and readability.
+- Possible logical bugs.
+- Security vulnerabilities.
+- Performance problems.
+- Best practices.
+- User-uploaded coding guidelines through RAG.\
+
+
+1. Quality score
+Rule-based (static_checks.py)	AI-based (reviewers.py)
+Long functions	                Poor code maintainability
+Too many parameters	            Poor code structure
+Deep nesting	                Difficult-to-understand logic
+Empty exception handling	    Code readability issues
+Large files	                    Potential design problems
+
+Both contribute quality findings.
+2. Security score
+Rule-based (scanners.py)	AI-based (reviewers.py)
+Hardcoded secrets	         Potential authentication weaknesses
+eval() and exec()	       Insecure coding practices
+SQL injection patterns	    Potential SQL injection risks
+verify=False	        Potential security weaknesses
+Weak hashing	          Security design concerns
+ 
+Both contribute security findings.
+
+"""
 from __future__ import annotations
 
 import asyncio

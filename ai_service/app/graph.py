@@ -4,6 +4,15 @@ START -> fetch_repository -(error? END)-> detect_technology -> collect_files
       -> [quality | security | performance | documentation]   (parallel branches)
       -> best_practices (join, uses RAG when the user uploaded guidelines)
       -> architecture -> final_reviewer -> generate_report -> END
+      Which function executes first.
+
+How GitHub repository data is fetched.
+When programming languages and frameworks are detected.
+Which source files are selected for review.
+When AI code review is performed.
+How parallel analysis branches are executed.
+How findings and scores are combined.
+When the final report is generated.
 """
 from __future__ import annotations
 

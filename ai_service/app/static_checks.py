@@ -1,4 +1,18 @@
-"""Deterministic code-quality checks (no LLM). Findings carry source="rule"."""
+"""Deterministic code-quality checks (no LLM). Very long functions.
+Functions with too many parameters.
+
+Deeply nested conditions.
+
+Empty exception handlers.
+
+Bare except statements.
+
+Large source files.
+
+Too many TODO/FIXME comments.
+
+Missing automated tests.
+Missing CI/CD configurationFindings carry source="rule"."""
 from __future__ import annotations
 
 import ast

@@ -1,4 +1,10 @@
-"""In-memory job registry. Django polls /jobs/{id}; results are persisted by Django in PostgreSQL."""
+"""In-memory job registry. Django polls /jobs/{id}; results are persisted by Django in PostgreSQL.
+Creates a unique analysis job.
+Starts the repository analysis workflow.
+Tracks analysis progress and current stage.
+Stores the generated report and errors.
+Handles GitHub access-token revocation after analysis.
+"""
 from __future__ import annotations
 
 import asyncio

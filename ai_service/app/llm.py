@@ -1,4 +1,11 @@
-"""LLM access: Groq through LangChain (LCEL prompt | structured model), plus a mock for tests."""
+"""LLM access: Groq through LangChain (LCEL prompt | structured model), plus a mock for tests.
+Connects Repo Intel to Groq using LangChain.
+
+Sends prompts and repository code to the AI model.
+
+Ensures AI responses follow the required Pydantic schema.
+
+Handles errors such as rate limits, invalid requests and oversized requests."""
 from __future__ import annotations
 
 import asyncio

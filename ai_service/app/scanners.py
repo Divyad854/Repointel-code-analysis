@@ -1,5 +1,15 @@
 """Deterministic security scanning (no LLM): secret patterns and risky code patterns.
+Hardcoded passwords and API keys.
 
+AWS and GitHub tokens.
+SQL injection patterns.
+eval() and exec()
+shell=True.
+DEBUG=True.
+Unsafe innerHTML.
+
+security
+Sensitive files such as .env and private keys.
 The LLM is good at judgement, bad at being certain. These regex scanners are fast,
 repeatable and cheap, and their findings carry source="rule".
 """
