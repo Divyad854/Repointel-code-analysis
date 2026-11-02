@@ -1,0 +1,42 @@
+
+name: Repo-Intel CI/CD
+
+on:
+  push:
+    branches:
+      - main
+
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: Deploy to AWS EC2
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Deploy application to EC2
+        uses: appleboy/ssh-action@v1.2.2
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            cd /opt/repo-intel/Repointel-code-analysis
+
+            echo "Pulling latest code..."
+            git pull origin main
+
+            echo "Building Docker services..."
+            docker compose build web ai_service
+
+            echo "Applying database migrations..."
+            docker compose run --rm --no-deps web python manage.py migrate
+
+            echo "Restarting application..."
+            docker compose up -d --no-deps web ai_service
+
+            echo "Deployment completed!"
+            docker compose ps
