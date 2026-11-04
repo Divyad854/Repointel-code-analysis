@@ -8,10 +8,7 @@ from django.test import Client, TestCase, override_settings
 from django.urls import reverse
 
 from reviews.models import Analysis
-
 User = get_user_model()
-
-
 class UsernameOrEmailLoginTests(TestCase):
     def setUp(self):
         self.user = User.objects.create_user(

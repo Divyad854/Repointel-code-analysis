@@ -8,10 +8,11 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
+# finds your project's .env file and loads its variables.
 PROJECT_ENV_FILE = Path(__file__).resolve().parents[2] / ".env"
 load_dotenv(dotenv_path=PROJECT_ENV_FILE, override=True)
 
-
+# converts environment variables into integers.
 def _int(name: str, default: int) -> int:
     try:
         return int(os.getenv(name, default))

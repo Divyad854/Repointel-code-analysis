@@ -14,7 +14,7 @@ import logging
 import math
 import re
 from typing import NoReturn, TypeVar
-
+# : Creates system and human messages for the LLM.
 from langchain_core.prompts import ChatPromptTemplate
 from pydantic import BaseModel, ValidationError
 
@@ -41,18 +41,30 @@ class LLMRequestTooLarge(LLMError):
 class BaseLLM:
     """Interface used by the graph nodes."""
 
+
+
+
+# Your default concurrency is 3.
+# This means a maximum of three operations can enter the protected section at the same time.
+# For example, if five nodes request AI operations, three can proceed while the others wait.
     def __init__(self, concurrency: int = 3) -> None:
+        # how many AI operations can run concurrently
         self._sem = asyncio.Semaphore(concurrency)
         self.calls = 0
         self.provider_requests_sent = 0
         self._blocked_error: str | None = None
 
+    # common entry point used by the graph nodes
     async def structured(
         self,
+        # Expected response structure,
         schema: type[T],
+        # Instructions given to the AI
         system: str,
+        # Actual code or review prompt  
         user: str,
         *,
+        # Selects the plain JSON request method when true
         plain_json: bool = False,
     ) -> T:
         async with self._sem:
@@ -62,11 +74,14 @@ class BaseLLM:
             runner = self._run_json if plain_json else self._run
             return await runner(schema, system, user)
 
+
     async def _run(self, schema: type[T], system: str, user: str) -> T:  # pragma: no cover - interface
         raise NotImplementedError
+    
 
     async def _run_json(self, schema: type[T], system: str, user: str) -> T:
         return await self._run(schema, system, user)
+
 
 
 class GroqLLM(BaseLLM):
@@ -89,6 +104,9 @@ class GroqLLM(BaseLLM):
         )
         self._prompt = ChatPromptTemplate.from_messages([("system", "{system}"), ("human", "{user}")])
 
+
+
+
     async def _check_tpm_budget(
         self,
         system: str,
@@ -103,9 +121,17 @@ class GroqLLM(BaseLLM):
                 "Groq rejected the single review request as too large for the configured tokens-per-minute limit."
             )
 
+# this method uses /use LangChain's structured-output integration.
+
     async def _run(self, schema: type[T], system: str, user: str) -> T:
         return await self._run_with_method(schema, system, user, "json_schema")
 
+# the Groq SDK directly 
+# AsyncGroq
+# Sends request directly to Groq
+# Groq returns JSON text
+# json.loads() + Pydantic validation
+# Validated result returned to LangGraph
     async def _run_json(self, schema: type[T], system: str, user: str) -> T:
         if self._blocked_error:
             raise LLMError(self._blocked_error)
@@ -124,6 +150,8 @@ class GroqLLM(BaseLLM):
                 max_retries=0,
             ) as client:
                 self.provider_requests_sent = getattr(self, "provider_requests_sent", 0) + 1
+               
+            #    Send request
                 response = await client.chat.completions.create(
                     model=self._model_name,
                     messages=[
@@ -144,6 +172,7 @@ class GroqLLM(BaseLLM):
                 "Groq truncated the private review at its output-token limit; "
                 "the report uses rule-based fallback."
             )
+        
         content = choice.message.content if choice else None
         if not isinstance(content, str):
             raise LLMError("Groq returned no text for the private repository review.")
@@ -173,6 +202,12 @@ class GroqLLM(BaseLLM):
             self.provider_requests_sent,
         )
         return result
+
+
+# Creates the LangChain prompt and model chain.
+# Checks token budget.
+# Sends one request to Groq using ainvoke().
+# Receives and returns the structured response.
 
     async def _run_with_method(
         self,
@@ -204,6 +239,8 @@ class GroqLLM(BaseLLM):
             raise
         except Exception as exc:  # network, rate limit, validation...
             self._raise_request_error(exc)
+
+
 
     def _raise_request_error(
         self,
@@ -275,6 +312,11 @@ class GroqLLM(BaseLLM):
         ) from exc
 
 
+
+
+
+
+
 class MockLLM(BaseLLM):
     """Deterministic fake used by tests and for trying the pipeline without an API key."""
 
@@ -340,6 +382,9 @@ class MockLLM(BaseLLM):
         raise LLMError(f"MockLLM cannot produce {schema.__name__}")
 
 
+
+
+# This is the factory function that decides which LLM implementation your application should use
 def build_llm(settings: Settings | None = None) -> BaseLLM | None:
     """Returns None when an AI reviewer is not configured."""
     s = settings or get_settings()

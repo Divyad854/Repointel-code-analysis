@@ -12,6 +12,8 @@ security
 Sensitive files such as .env and private keys.
 The LLM is good at judgement, bad at being certain. These regex scanners are fast,
 repeatable and cheap, and their findings carry source="rule".
+
+These are pattern-based indicators, not proof that a vulnerability is exploitable.
 """
 from __future__ import annotations
 
@@ -22,6 +24,7 @@ from dataclasses import dataclass
 from .schemas import Finding
 
 # --------------------------------------------------------------------- secrets
+# Known provider-specific formats are checked first to catch recognizable credentials.
 KNOWN_SECRET_PATTERNS: list[tuple[str, re.Pattern]] = [
     ("AWS access key ID", re.compile(r"\bAKIA[0-9A-Z]{16}\b")),
     ("GitHub token", re.compile(r"\bgh[pousr]_[A-Za-z0-9]{30,}\b")),
@@ -34,6 +37,7 @@ KNOWN_SECRET_PATTERNS: list[tuple[str, re.Pattern]] = [
     ("Private key block", re.compile(r"-----BEGIN (?:RSA |EC |OPENSSH |DSA |PGP )?PRIVATE KEY(?: BLOCK)?-----")),
 ]
 
+# Fallback pattern for values assigned to secret-like variable names (for example API_KEY="...").
 _GENERIC_ASSIGN = re.compile(
     r"""(?ix)
     (?P<key>[\w.-]*(?:api[_-]?key|secret|passwd|password|pwd|token|auth[_-]?key|access[_-]?key|private[_-]?key)[\w.-]*)
@@ -41,8 +45,10 @@ _GENERIC_ASSIGN = re.compile(
     (?P<q>["'])(?P<val>[^"'\s]{6,})(?P=q)
     """
 )
+# Detect database connection strings that contain a username and password.
 _DB_URL = re.compile(r"""(?ix)\b(?:postgres(?:ql)?|mysql|mongodb(?:\+srv)?|redis|amqp)://[^:\s/@"']+:(?P<pw>[^@\s"']+)@""")
 
+# Avoid reporting obvious examples/placeholders such as YOUR_API_KEY or ${API_KEY}.
 _PLACEHOLDER = re.compile(
     r"""(?ix)^(?:
         your[_-].*|.*changeme.*|.*change[_-]me.*|.*example.*|.*placeholder.*|.*xxx+.*|\*+|<.*>|\$\{.*\}|\{\{.*\}\}|
@@ -53,18 +59,22 @@ _PLACEHOLDER = re.compile(
 
 
 def _is_placeholder(value: str) -> bool:
+    # Placeholder values are not treated as real credentials.
     return bool(_PLACEHOLDER.match(value.strip()))
 
 
 def _mask(value: str) -> str:
+    # Keep only a short prefix for identification; hide the rest of the secret.
     return (value[:4] + "****") if len(value) > 4 else "****"
 
 
 def redact_secrets(text: str) -> str:
     """Mask secrets so they are neither sent to the LLM nor repeated in reports."""
+    # First redact known token formats wherever they appear in the source.
     for _, pat in KNOWN_SECRET_PATTERNS:
         text = pat.sub(lambda m: _mask(m.group(0)), text)
 
+    # Redact generic assignments, but leave recognized placeholders unchanged.
     def _generic(m: re.Match) -> str:
         val = m.group("val")
         if _is_placeholder(val):
@@ -77,6 +87,7 @@ def redact_secrets(text: str) -> str:
 
 
 # ------------------------------------------------------------- risky patterns
+# Each rule describes a risky pattern and the finding details to report.
 @dataclass(frozen=True)
 class Rule:
     id: str
@@ -89,6 +100,7 @@ class Rule:
     confidence: float = 0.75
 
 
+# Rule-based checks for potentially unsafe code/configuration across supported languages.
 RULES: list[Rule] = [
     Rule("py-eval", re.compile(r"(?<![\w.])eval\s*\("), (".py",), "high",
          "Use of eval()", "eval() executes arbitrary code; if any part of the input is attacker-controlled this is remote code execution.",
@@ -140,19 +152,24 @@ RULES: list[Rule] = [
          "Create and switch to an unprivileged user.", 0.5),
 ]
 
+# Match paths that should generally not be committed, such as .env and private keys.
 _SENSITIVE_FILES = re.compile(r"(?:^|/)(?:\.env(?:\.(?!example$|sample$|template$)[\w.-]+)?|id_rsa|id_dsa|id_ed25519|[^/]+\.pem|[^/]+\.p12|[^/]+\.pfx|[^/]+\.keystore)$", re.I)
+# Limit repeated matches so one pattern cannot flood the report.
 _MAX_PER_RULE = 5
 
 
 def _line_of(text: str, index: int) -> int:
+    # Convert a character offset returned by a regex into a 1-based line number.
     return text.count("\n", 0, index) + 1
 
 
 def _line_text(lines: list[str], line: int) -> str:
+    # Return a short evidence snippet for the report, avoiding very long lines.
     return lines[line - 1].strip()[:240] if 0 < line <= len(lines) else ""
 
 
 def _is_test_path(path: str) -> bool:
+    # Test/example files can intentionally contain unsafe samples, so treat them separately.
     p = path.lower()
     return any(x in p for x in ("/test/", "/tests/", "test_", "_test.", ".test.", ".spec.", "/__tests__/", "/fixtures/", "/examples/", "/docs/"))
 
@@ -160,6 +177,7 @@ def _is_test_path(path: str) -> bool:
 def scan_repository(files: dict[str, str], all_paths: list[str]) -> list[Finding]:
     """Run every deterministic security check over the repository."""
     findings: list[Finding] = []
+    # Track counts per rule across the scan to cap duplicate/noisy findings.
     per_rule: dict[str, int] = defaultdict(int)
 
     # 1. Sensitive files committed to the repository (reported by path; never read)
@@ -173,6 +191,7 @@ def scan_repository(files: dict[str, str], all_paths: list[str]) -> list[Finding
                 recommendation="Remove it from git, add it to .gitignore, rotate any credentials it contained and commit a .env.example instead.",
             ))
 
+    # Scan file contents for credentials and risky code patterns.
     for path, content in files.items():
         lower = path.lower()
         name = lower.split("/")[-1]
@@ -183,6 +202,7 @@ def scan_repository(files: dict[str, str], all_paths: list[str]) -> list[Finding
         lines = content.splitlines()
 
         # 2. Secrets
+        # Check recognizable API keys/tokens; these receive critical severity.
         for label, pat in KNOWN_SECRET_PATTERNS:
             for m in pat.finditer(content):
                 if per_rule[label] >= _MAX_PER_RULE:
@@ -197,6 +217,7 @@ def scan_repository(files: dict[str, str], all_paths: list[str]) -> list[Finding
                     recommendation="Revoke and rotate the credential, then load it from an environment variable or a secrets manager.",
                 ))
 
+        # Search code/config files for generic secret-like assignments; skip documentation.
         if not name.endswith((".md", ".rst", ".txt")) and not name.startswith(".env."):
             for m in _GENERIC_ASSIGN.finditer(content):
                 val = m.group("val")
@@ -216,6 +237,7 @@ def scan_repository(files: dict[str, str], all_paths: list[str]) -> list[Finding
                     recommendation="Read the value from an environment variable or secrets manager and keep it out of source control.",
                 ))
 
+        # Also detect passwords embedded in database URLs.
         for m in _DB_URL.finditer(content):
             if _is_placeholder(m.group("pw")) or per_rule["db-url"] >= _MAX_PER_RULE:
                 continue
@@ -232,6 +254,7 @@ def scan_repository(files: dict[str, str], all_paths: list[str]) -> list[Finding
         # 3. Risky code patterns
         if is_test:
             continue
+        # Apply language-specific rules only when the file extension matches.
         for rule in RULES:
             if rule.exts is not None and ext not in rule.exts:
                 continue
@@ -240,6 +263,7 @@ def scan_repository(files: dict[str, str], all_paths: list[str]) -> list[Finding
                     break
                 per_rule[rule.id] += 1
                 line = _line_of(content, m.start())
+                # Build a standardized Finding object for the security report.
                 findings.append(Finding(
                     file=path, line=line, category="security", severity=rule.severity,  # type: ignore[arg-type]
                     source="rule", confidence=rule.confidence, issue=rule.issue,

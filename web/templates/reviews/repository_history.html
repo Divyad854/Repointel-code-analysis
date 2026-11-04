@@ -1,0 +1,106 @@
+
+{% extends "base.html" %}
+
+{% block title %}Repository Reports{% endblock %}
+
+{% block content %}
+
+<div class="page-head">
+    <div>
+        <h1>Repository Reports</h1>
+        <p class="muted">
+            {{ repository.owner }}/{{ repository.repo_name }}
+        </p>
+    </div>
+
+    <a class="btn ghost" href="{% url 'history' %}">
+        ← Back to My Reports
+    </a>
+</div>
+
+<div class="card">
+
+    <div class="page-head tight">
+        <div>
+            <h2>Analysis History</h2>
+            <p class="muted small">
+                Previous analysis reports for this repository
+            </p>
+        </div>
+
+        <span class="status">
+            {{ reports|length }} Reports
+        </span>
+    </div>
+
+    <div class="table-scroll">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>REPORT</th>
+                    <th>SCORE</th>
+                    <th>STATUS</th>
+                    <th>DATE</th>
+                    <th>ACTION</th>
+                </tr>
+            </thead>
+
+            <tbody>
+                {% for report in reports %}
+                <tr>
+                    <td>
+                        <strong>
+                            Report {{ forloop.counter }}
+                        </strong>
+                    </td>
+
+                    <td>
+                        {% if report.overall_score != None %}
+                            <span class="pill {% if report.overall_score >= 80 %}good{% elif report.overall_score >= 60 %}ok{% else %}bad{% endif %}">
+                                {{ report.overall_score }}/100
+                            </span>
+                        {% else %}
+                            <span class="muted">-</span>
+                        {% endif %}
+                    </td>
+
+                    <td>
+                        <span class="status {{ report.status|lower }}">
+                            {{ report.get_status_display }}
+                        </span>
+                    </td>
+
+                    <td>
+                        {{ report.created_at|date:"d M Y, H:i" }}
+                    </td>
+
+                    <td>
+                        <a href="{% url 'report' report.pk %}"
+                           class="btn small">
+                            Open Report
+                        </a>
+                    </td>
+                </tr>
+
+                {% empty %}
+                <tr>
+                    <td colspan="5">
+                        <div class="card empty">
+                            <h3>No reports found</h3>
+                            <p class="muted">
+                                Analyse this repository to generate a report.
+                            </p>
+                            <a href="{% url 'analyze' %}" class="btn">
+                                New Analysis
+                            </a>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+</div>
+
+{% endblock %}

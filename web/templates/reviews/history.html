@@ -1,15 +1,126 @@
+
+
 {% extends "base.html" %}
-{% block title %}My reports{% endblock %}
+
+{% block title %}My Reports{% endblock %}
+
 {% block content %}
-<div class="page-head"><h1>My reports</h1><a class="btn" href="{% url 'analyze' %}">+ New analysis</a></div>
-<div class="card">
-  {% include "reviews/_analysis_table.html" with items=page %}
-  {% if page.paginator.num_pages > 1 %}
-  <div class="pager">
-    {% if page.has_previous %}<a href="?page={{ page.previous_page_number }}">← Newer</a>{% endif %}
-    <span class="muted">Page {{ page.number }} of {{ page.paginator.num_pages }}</span>
-    {% if page.has_next %}<a href="?page={{ page.next_page_number }}">Older →</a>{% endif %}
-  </div>
-  {% endif %}
+
+<div class="page-head">
+    <div>
+        <h1>My Reports</h1>
+        <p class="muted">
+            View and manage all your repository analysis reports.
+        </p>
+    </div>
+
+    <a class="btn" href="{% url 'analyze' %}">
+        + New Analysis
+    </a>
 </div>
+
+<div class="card">
+    
+
+    <div class="table-scroll">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Repository</th>
+                    <th>Reports</th>
+                    <th>Latest Score</th>
+                    <th>Status</th>
+                    <th>Last Analysed</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+
+            <tbody>
+                {% for item in page %}
+                {% with analysis=item.latest %}
+                <tr>
+                    <td>
+                        <strong>
+                            {{ analysis.owner }}/{{ analysis.repo_name }}
+                        </strong>
+                    </td>
+
+                    <td>
+                        {{ item.report_count }}
+                        {% if item.report_count == 1 %}
+                            report
+                        {% else %}
+                            reports
+                        {% endif %}
+                    </td>
+
+                    <td>
+                        {% if analysis.overall_score != None %}
+                            <span class="pill {% if analysis.overall_score >= 80 %}good{% elif analysis.overall_score >= 60 %}ok{% else %}bad{% endif %}">
+                                {{ analysis.overall_score }}/100
+                            </span>
+                        {% else %}
+                            <span class="muted">-</span>
+                        {% endif %}
+                    </td>
+
+                    <td>
+                        <span class="status {{ analysis.status|lower }}">
+                            {{ analysis.get_status_display }}
+                        </span>
+                    </td>
+
+                    <td>
+                        {{ analysis.created_at|date:"d M Y, H:i" }}
+                    </td>
+
+                    <td>
+                        <a class="btn small"
+                           href="{% url 'repository_history' analysis.pk %}">
+                            View Reports →
+                        </a>
+                    </td>
+                </tr>
+                {% endwith %}
+
+                {% empty %}
+                <tr>
+                    <td colspan="6">
+                        <div class="card empty">
+                            <h3>No repositories found</h3>
+                            <p class="muted">
+                                Start analysing a GitHub repository to see your reports here.
+                            </p>
+                            <a class="btn" href="{% url 'analyze' %}">
+                                Start Analysis
+                            </a>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    {% if page.paginator.num_pages > 1 %}
+    <div class="pager">
+        {% if page.has_previous %}
+            <a href="?page={{ page.previous_page_number }}">
+                ← Newer
+            </a>
+        {% endif %}
+
+        <span class="muted">
+            Page {{ page.number }} of {{ page.paginator.num_pages }}
+        </span>
+
+        {% if page.has_next %}
+            <a href="?page={{ page.next_page_number }}">
+                Older →
+            </a>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+
 {% endblock %}

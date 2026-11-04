@@ -1,3 +1,4 @@
+
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -162,9 +163,47 @@ def analyze(request):
 
 @login_required
 def history(request):
-    page = Paginator(Analysis.objects.filter(user=request.user), 15).get_page(request.GET.get("page"))
-    return render(request, "reviews/history.html", {"page": page})
+    """Show one row per repository, with its latest analysis and report count."""
+    analyses = Analysis.objects.filter(user=request.user).order_by("-created_at", "-pk")
 
+    # Group by repository URL. Each Analysis remains a separate database record.
+    repositories = {}
+    for analysis in analyses:
+        repo_url = analysis.repo_url
+        if repo_url not in repositories:
+            repositories[repo_url] = {
+                "latest": analysis,
+                "report_count": 0,
+            }
+        repositories[repo_url]["report_count"] += 1
+
+    page = Paginator(list(repositories.values()), 15).get_page(
+        request.GET.get("page")
+    )
+    return render(request, "reviews/history.html", {"page": page})
+@login_required
+def repository_history(request, pk):
+    """Show every analysis report for the selected repository."""
+
+    selected = get_object_or_404(
+        Analysis,
+        pk=pk,
+        user=request.user
+    )
+
+    reports = Analysis.objects.filter(
+        user=request.user,
+        repo_url=selected.repo_url
+    ).order_by("-created_at", "-pk")
+
+    return render(
+        request,
+        "reviews/repository_history.html",
+        {
+            "repository": selected,
+            "reports": reports,
+        }
+    )
 
 @login_required
 def report(request, pk):

@@ -1,10 +1,5 @@
-"""In-memory job registry. Django polls /jobs/{id}; results are persisted by Django in PostgreSQL.
-Creates a unique analysis job.
-Starts the repository analysis workflow.
-Tracks analysis progress and current stage.
-Stores the generated report and errors.
-Handles GitHub access-token revocation after analysis.
-"""
+
+
 from __future__ import annotations
 
 import asyncio
@@ -21,6 +16,7 @@ from .github_client import GitHubError, list_profile_repositories
 from .llm import build_llm
 from .schemas import AnalyzeRequest, ProfileAnalyzeRequest
 
+# records job-related information.
 log = logging.getLogger("repo-intel.jobs")
 
 JOBS: dict[str, dict[str, Any]] = {}
@@ -28,6 +24,7 @@ _MAX_JOBS = 200
 _graph = None
 
 
+# Build the LangGraph workflow once and reuse it for later jobs.
 def _get_graph():
     global _graph
     if _graph is None:
@@ -35,10 +32,13 @@ def _get_graph():
     return _graph
 
 
+# Create a job record so the UI can track its queued/running/done/failed status.
 def create_job() -> str:
     if len(JOBS) >= _MAX_JOBS:  # drop the oldest finished jobs
+        # Finds completed and failed jobs and sorts them by creation time, oldest first.
         finished = sorted((j["created"], k) for k, j in JOBS.items() if j["status"] in ("done", "failed"))
         for _, k in finished[: len(JOBS) - _MAX_JOBS + 1]:
+            # remove old jobs
             JOBS.pop(k, None)
     job_id = uuid.uuid4().hex
     JOBS[job_id] = {"status": "queued", "stage": "", "steps": [], "total_steps": len(STEP_LABELS),
@@ -46,6 +46,7 @@ def create_job() -> str:
     return job_id
 
 
+# Run one repository analysis as a background job and collect graph updates.
 async def run_job(job_id: str, req: AnalyzeRequest) -> None:
     job = JOBS[job_id]
     job["status"] = "running"
@@ -57,6 +58,9 @@ async def run_job(job_id: str, req: AnalyzeRequest) -> None:
         "user_id": req.user_id,
     }
 
+    #Execute LangGraph using _run()
+    # astream() executes the LangGraph workflow asynchronously and streams updates as nodes finish.
+    #  Stream LangGraph node updates so progress, errors and the final report are captured.
     async def _run() -> None:
         async for update in _get_graph().astream(state, config={"configurable": {"llm": llm}}, stream_mode="updates"):
             for node, values in update.items():
@@ -69,7 +73,9 @@ async def run_job(job_id: str, req: AnalyzeRequest) -> None:
                     job["report"] = values["report"]
 
     try:
+        # Initialize the LLM once for this repository analysis.
         llm = build_llm()
+        # Stop the analysis if it exceeds the configured job timeout.
         await asyncio.wait_for(_run(), timeout=get_settings().job_timeout_s)
         if job["error"] or not job["report"]:
             job["status"] = "failed"
@@ -83,6 +89,7 @@ async def run_job(job_id: str, req: AnalyzeRequest) -> None:
         log.exception("job %s crashed", job_id)
         job["status"], job["error"] = "failed", f"Internal error: {exc.__class__.__name__}"
     finally:
+        # Revoke temporary GitHub OAuth access after the job, even if analysis failed.
         if req.github_access_token:
             try:
                 await _revoke_github_grant(req.github_access_token)
@@ -102,18 +109,28 @@ async def run_job(job_id: str, req: AnalyzeRequest) -> None:
             req.github_access_token = None
 
 
+
+
+# Combine individual repository reports into one GitHub-profile-level report.
 def _aggregate_profile(username: str, reports: list[dict], warnings: list[str], duration: float) -> dict:
+    # Merge findings and prefix each file path with its repository name to avoid ambiguity.
     findings = []
     for report in reports:
         repo_name = report["repository"]["name"]
         findings.extend({**finding, "file": f"{repo_name}/{finding['file']}"}
                         for finding in report.get("findings", []))
 
+
+
+    # Calculate the average score for each category across repositories that have a score.
     score_names = ("quality", "security", "performance", "best_practices", "documentation")
     scores = {}
     for name in score_names:
         values = [report["scores"][name] for report in reports if report["scores"].get(name) is not None]
         scores[name] = round(sum(values) / len(values)) if values else None
+
+
+    # Calculate the overall profile score from repositories with an available overall score.
     repository_scores = [
         report["overall_score"] for report in reports
         if report.get("overall_score") is not None
@@ -122,6 +139,9 @@ def _aggregate_profile(username: str, reports: list[dict], warnings: list[str], 
         round(sum(repository_scores) / len(repository_scores))
         if repository_scores else None
     )
+
+
+    # Keep a compact summary of each repository for the profile report's repository list.
     repositories = [{
         "name": report["repository"]["name"], "url": report["repository"]["url"],
         "score": report["overall_score"], "summary": report["summary"],
@@ -129,6 +149,8 @@ def _aggregate_profile(username: str, reports: list[dict], warnings: list[str], 
         "architecture": report.get("architecture", {}).get("summary", ""),
         "technology": report.get("technology", {}).get("all", []),
     } for report in reports]
+
+    # Merge technology information across repositories, including language percentages.
     technology = dict(reports[0].get("technology", {}))
     languages: dict[str, list[float]] = {}
     for report in reports:
@@ -149,6 +171,7 @@ def _aggregate_profile(username: str, reports: list[dict], warnings: list[str], 
     technology["technologies"] = {
         group: list(dict.fromkeys(names)) for group, names in tech_groups.items()
     }
+    # Prepare aggregate counts for finding severity and analysis categories.
     severities = ("critical", "high", "medium", "low")
     categories = ("quality", "security", "performance", "best_practices", "documentation")
     checklist_keys = set().union(*(report.get("doc_checklist", {}).keys() for report in reports))
@@ -156,6 +179,7 @@ def _aggregate_profile(username: str, reports: list[dict], warnings: list[str], 
         key: all(report.get("doc_checklist", {}).get(key, False) for report in reports)
         for key in checklist_keys
     }
+    # A single-repository profile can show its architecture; multiple repositories may differ.
     architecture = reports[0].get("architecture", {}) if len(reports) == 1 else {
         "frontend": "Varies by repository", "backend": "Varies by repository",
         "database": "Varies by repository", "authentication": "Varies by repository",
@@ -208,12 +232,14 @@ def _aggregate_profile(username: str, reports: list[dict], warnings: list[str], 
     }
 
 
+# Revoke the GitHub OAuth grant used for a profile analysis.
 async def _revoke_profile_grant(req: ProfileAnalyzeRequest) -> None:
     if not req.github_access_token:
         raise RuntimeError("GitHub access token is unavailable for revocation.")
     await _revoke_github_grant(req.github_access_token)
 
 
+# Call GitHub's OAuth grant-revocation endpoint, retrying transient HTTP failures.
 async def _revoke_github_grant(access_token: str) -> None:
     settings = get_settings()
     if not settings.github_oauth_client_id or not settings.github_oauth_client_secret:
@@ -243,6 +269,9 @@ async def _revoke_github_grant(access_token: str) -> None:
             await asyncio.sleep(0.5 * (attempt + 1))
 
 
+# Analyze all selected repositories in a GitHub profile and aggregate their reports.
+# analyzes multiple repositories.
+# Analyze multiple repositories sequentially
 async def run_profile_job(job_id: str, req: ProfileAnalyzeRequest) -> None:
     job = JOBS[job_id]
     job["status"] = "running"
@@ -252,6 +281,7 @@ async def run_profile_job(job_id: str, req: ProfileAnalyzeRequest) -> None:
     error = ""
     deadline = time.monotonic() + get_settings().job_timeout_s
     try:
+        # Fetch the profile's repositories, respecting the remaining job time limit.
         repos = await asyncio.wait_for(
             list_profile_repositories(
                 req.username,
@@ -267,6 +297,7 @@ async def run_profile_job(job_id: str, req: ProfileAnalyzeRequest) -> None:
                     f"Repository {req.username}/{req.repository_name} was not found in the profile's owned repositories or is not accessible."
                 )
             raise GitHubError(f"No repositories were found for @{req.username}.")
+        # Reuse one LLM client while reviewing each repository in the profile.
         llm = build_llm()
         for repo in repos:
             state = {
@@ -278,6 +309,7 @@ async def run_profile_job(job_id: str, req: ProfileAnalyzeRequest) -> None:
             if time.monotonic() >= deadline:
                 raise asyncio.TimeoutError
 
+            # Run the LangGraph workflow for this repository and capture its report.
             async def review_repo():
                 current_report = None
                 async for update in _get_graph().astream(
@@ -304,6 +336,7 @@ async def run_profile_job(job_id: str, req: ProfileAnalyzeRequest) -> None:
             except Exception as exc:
                 log.exception("profile repository analysis failed for %s", repo.full_name)
                 warnings.append(f"{repo.name}: analysis failed ({exc.__class__.__name__}).")
+        # A profile report requires at least one successfully analyzed repository.
         if not reports:
             raise RuntimeError("None of the profile's repositories could be analyzed.")
         job["report"] = _aggregate_profile(req.username, reports, warnings, time.time() - started)
@@ -311,6 +344,7 @@ async def run_profile_job(job_id: str, req: ProfileAnalyzeRequest) -> None:
         log.exception("profile job %s failed", job_id)
         error = str(exc)[:300]
     finally:
+        # Private-repository access is temporary; revoke the OAuth grant after processing.
         if req.include_private:
             try:
                 await _revoke_profile_grant(req)

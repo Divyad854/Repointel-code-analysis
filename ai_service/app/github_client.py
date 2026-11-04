@@ -1,4 +1,10 @@
-"""Fetch a repository from GitHub (one zipball download, a few API calls)."""
+"""Fetch a repository from GitHub (one zipball download, a few API calls).
+Its main responsibility is to connect with GitHub, download a repository, 
+extract its source code, filter unnecessary files, 
+and prepare the repository data for AI code analysis.
+"""
+
+# Allows type annotations to be evaluated lazily (stored without immediate evaluation).
 from __future__ import annotations
 
 import io
@@ -12,11 +18,17 @@ from .config import get_settings
 
 API = "https://api.github.com"
 
+
+# https://github.com/divya/repo-intel
 _URL_RE = re.compile(
     r"^(?:https?://)?(?:www\.)?github\.com/"
     r"(?P<owner>[A-Za-z0-9_.-]+)/(?P<name>[A-Za-z0-9_.-]+?)(?:\.git)?"
     r"(?:/tree/(?P<branch>[^/\s]+))?(?:/.*)?$"
 )
+
+
+
+# divya/repo-intel
 _SHORT_RE = re.compile(r"^(?P<owner>[A-Za-z0-9_.-]+)/(?P<name>[A-Za-z0-9_.-]+?)(?:\.git)?$")
 
 
@@ -46,10 +58,13 @@ class RepoRef:
 def parse_repo(text: str, branch: str | None = None) -> RepoRef:
     """Accepts https://github.com/owner/repo, github.com/owner/repo/tree/branch or owner/repo."""
     text = (text or "").strip().rstrip("/")
+#   Checks the input against both Regex patterns.
+    
     m = _URL_RE.match(text) or _SHORT_RE.match(text)
     if not m:
         raise GitHubError("That doesn't look like a GitHub repository. Use https://github.com/owner/repo or owner/repo.")
     owner, name = m.group("owner"), m.group("name")
+    #   Remove .git
     if name.lower().endswith(".git"):
         name = name[:-4]
     found_branch = m.groupdict().get("branch")
@@ -102,6 +117,8 @@ def is_ignored(path: str) -> bool:
     return False
 
 
+# checks whether a remaining file is a supported text file.
+# Since .py exists in TEXT_EXTS, it returns True.  Identifies readable text files
 def is_text_candidate(path: str) -> bool:
     name = path.split("/")[-1].lower()
     if name in SPECIAL_NAMES or name.startswith("dockerfile") or name.startswith("readme"):
@@ -112,7 +129,7 @@ def is_text_candidate(path: str) -> bool:
     return dot != -1 and name[dot:] in TEXT_EXTS
 
 
-# ------------------------------------------------------------ zip handling
+# --Extracts files, filters folders and reads source code	Extracts and filters ZIP contents------------------ zip handling
 def snapshot_from_zip(
     data: bytes, ref: RepoRef, *, default_branch: str = "main", description: str = "",
     stars: int = 0, languages: dict[str, int] | None = None, is_private: bool = False,
@@ -121,18 +138,30 @@ def snapshot_from_zip(
     snap = RepoSnapshot(ref=ref, default_branch=default_branch, description=description,
                         stars=stars, is_private=is_private, languages_bytes=languages or {})
     total_read = 0
+    # maximum total extracted text-file size of 25 MB.
+    # io.BytesIO(data) converts bytes into a file-like object in memory.
+
+        # zipfile.ZipFile() opens that object as a ZIP archive
     max_total = 25 * 1024 * 1024
     with zipfile.ZipFile(io.BytesIO(data)) as zf:
         for info in zf.infolist():
             if info.is_dir():
                 continue
-            # GitHub zipballs wrap everything in "<owner>-<repo>-<sha>/"
+            # GitHub zipballs wrap everything in "<owner>-<repo>-<sha>/"_, _, path = info.filename.partition("/")
+            # main.py
             _, _, path = info.filename.partition("/")
+
+            # Is the path empty?
+            # Is the file or folder ignored?
+            # Does the path contain ..?
             if not path or is_ignored(path) or ".." in path.split("/"):
                 continue
             snap.all_paths.append(path)
             if not is_text_candidate(path):
                 continue
+
+            # Total extracted text-file size cannot exceed 25 MB.
+            # Maximum number of stored text files is 3,000.
             if info.file_size > s.max_file_bytes:
                 snap.skipped_large += 1
                 continue
@@ -142,12 +171,15 @@ def snapshot_from_zip(
             if b"\x00" in raw[:2048]:  # binary
                 continue
             total_read += len(raw)
+            # 
+            # errors="ignore" means invalid UTF-8 byte sequences are ignored instead of causing a decoding exception.
             snap.files[path] = raw.decode("utf-8", errors="ignore")
     return snap
 
 
-# -------------------------------------------------------------- HTTP fetch
+# ------------- HTTP fetch
 def _explain(resp: httpx.Response, ref: RepoRef) -> GitHubError:
+
     if resp.status_code == 404:
         hint = (
             " GitHub returns 404 both when a repository does not exist and when a private repository is not "
@@ -166,6 +198,10 @@ def _explain(resp: httpx.Response, ref: RepoRef) -> GitHubError:
     return GitHubError(f"GitHub returned HTTP {resp.status_code} for {ref.full_name}.")
 
 
+
+
+
+
 async def ensure_public_repository(ref: RepoRef) -> None:
     """Reject hidden/private repositories before an unauthenticated analysis is queued."""
     headers = {
@@ -173,8 +209,11 @@ async def ensure_public_repository(ref: RepoRef) -> None:
         "User-Agent": "repo-intel/1.0",
         "X-GitHub-Api-Version": "2022-11-28",
     }
+
+    # Create asynchronous HTTP client
     async with httpx.AsyncClient(headers=headers, timeout=15) as client:
         try:
+            # Send GET request
             response = await client.get(f"{API}/repos/{ref.owner}/{ref.name}")
         except httpx.HTTPError as exc:
             raise GitHubError(f"Could not verify repository visibility with GitHub: {exc.__class__.__name__}.") from exc
@@ -195,12 +234,16 @@ async def ensure_public_repository(ref: RepoRef) -> None:
         )
 
 
+
+
+# Downloads repository and creates snapshot
 async def fetch_snapshot(ref: RepoRef, access_token: str | None = None) -> RepoSnapshot:
     s = get_settings()
     access_token = (access_token or "").strip()
     headers = {"Accept": "application/vnd.github+json", "User-Agent": "repo-intel/1.0",
                "X-GitHub-Api-Version": "2022-11-28"}
     if access_token:
+        # Bearer tells GitHub that the request is authenticated using an access token.
         headers["Authorization"] = f"Bearer {access_token}"
 
     async with httpx.AsyncClient(headers=headers, timeout=60, follow_redirects=True) as client:
@@ -218,6 +261,9 @@ async def fetch_snapshot(ref: RepoRef, access_token: str | None = None) -> RepoS
 
             buf = bytearray()
             limit = s.max_zip_mb * 1024 * 1024
+            # Because the ZIP file may be large.
+            # Instead of downloading everything into memory in one operation
+            # , your code receives the response in chunks.
             async with client.stream("GET", f"{API}/repos/{ref.owner}/{ref.name}/zipball/{branch}") as resp:
                 if resp.status_code != 200:
                     await resp.aread()
@@ -239,6 +285,10 @@ async def fetch_snapshot(ref: RepoRef, access_token: str | None = None) -> RepoS
         raise GitHubError("GitHub returned an unreadable archive.") from exc
 
 
+
+
+# Lists repositories from a GitHub profile
+# Finds whether the repository exists in the profile's returned repository list.
 async def list_profile_repositories(
     username: str,
     *,
@@ -282,6 +332,7 @@ async def list_profile_repositories(
             for repo in data:
                 owner = (repo.get("owner") or {}).get("login", "")
                 name = repo.get("name", "")
+                # casefold It compares strings without considering uppercase and lowercase differences.
                 if (
                     owner.casefold() == username.casefold()
                     and name
