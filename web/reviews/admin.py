@@ -37,8 +37,6 @@ class FindingAdmin(admin.ModelAdmin):
 @admin.register(Guideline)
 class GuidelineAdmin(admin.ModelAdmin):
     list_display = ("title", "user", "chunks", "status", "created_at")
-
-
 @admin.register(GitHubConnection)
 class GitHubConnectionAdmin(admin.ModelAdmin):
     list_display = (
@@ -51,7 +49,8 @@ class GitHubConnectionAdmin(admin.ModelAdmin):
 
     search_fields = ("user__username", "github_login")
 
-    readonly_fields = ("created_at", "updated_at")
-
-    # Never expose encrypted OAuth credentials in Django Admin
-    exclude = ("encrypted_access_token",)
+    readonly_fields = (
+        "encrypted_access_token",
+        "created_at",
+        "updated_at",
+    )
