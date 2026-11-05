@@ -1,6 +1,7 @@
+
 from django.contrib import admin
 
-from .models import Analysis, Finding, Guideline
+from .models import Analysis, Finding, Guideline, GitHubConnection
 
 
 class FindingInline(admin.TabularInline):
@@ -14,7 +15,10 @@ class FindingInline(admin.TabularInline):
 
 @admin.register(Analysis)
 class AnalysisAdmin(admin.ModelAdmin):
-    list_display = ("id", "owner", "repo_name", "user", "status", "overall_score", "created_at")
+    list_display = (
+        "id", "owner", "repo_name", "user",
+        "status", "overall_score", "created_at"
+    )
     list_filter = ("status", "created_at")
     search_fields = ("owner", "repo_name", "user__username")
     inlines = [FindingInline]
@@ -22,7 +26,10 @@ class AnalysisAdmin(admin.ModelAdmin):
 
 @admin.register(Finding)
 class FindingAdmin(admin.ModelAdmin):
-    list_display = ("issue", "severity", "category", "file", "line", "source")
+    list_display = (
+        "issue", "severity", "category",
+        "file", "line", "source"
+    )
     list_filter = ("severity", "category", "source")
     search_fields = ("issue", "file")
 
@@ -30,3 +37,21 @@ class FindingAdmin(admin.ModelAdmin):
 @admin.register(Guideline)
 class GuidelineAdmin(admin.ModelAdmin):
     list_display = ("title", "user", "chunks", "status", "created_at")
+
+
+@admin.register(GitHubConnection)
+class GitHubConnectionAdmin(admin.ModelAdmin):
+    list_display = (
+        "user",
+        "github_login",
+        "scopes",
+        "created_at",
+        "updated_at",
+    )
+
+    search_fields = ("user__username", "github_login")
+
+    readonly_fields = ("created_at", "updated_at")
+
+    # Never expose encrypted OAuth credentials in Django Admin
+    exclude = ("encrypted_access_token",)
