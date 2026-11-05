@@ -19,7 +19,7 @@ from django.urls import reverse, reverse_lazy
 from django.utils import timezone
 from django.views.decorators.cache import never_cache
 from django.views.decorators.csrf import ensure_csrf_cookie
-from reviews.models import Analysis, Guideline
+from reviews.models import Analysis, GitHubConnection, Guideline
 
 from .forms import EmailForm, OTPForm, ProfileForm, RegisterForm, ResetPasswordForm
 from reviews.services import AIServiceError, parse_repo_url, start_analysis
@@ -359,9 +359,34 @@ def github_callback(request):
         messages.error(request, "GitHub did not return an account name. Please try again.")
         return redirect("analyze")
 
-    # Keep the GitHub token in the user's server-side Django session so it can
-    # be reused for later private-repository analyses in this session.
-    request.session["github_access_token"] = access_token
+    # Persist the GitHub authorization against the Repo Intel user account.
+    # The model encrypts the token before it is stored in the database, so the
+    # same connection can be reused from other devices signed in to this account.
+    try:
+        connection = GitHubConnection.objects.filter(user=request.user).first()
+        if connection is None:
+            connection = GitHubConnection(user=request.user)
+
+        scope_value = token_data.get("scope", "")
+        if isinstance(scope_value, str):
+            scopes = [item for item in scope_value.replace(",", " ").split() if item]
+        elif isinstance(scope_value, list):
+            scopes = scope_value
+        else:
+            scopes = []
+
+        connection.github_login = github_login
+        connection.scopes = scopes
+        connection.set_access_token(access_token)
+        connection.save()
+    except Exception:
+        logger.exception("Could not securely save the GitHub connection for user %s", request.user.pk)
+        messages.error(
+            request,
+            "GitHub authorization succeeded, but we could not save the connection. "
+            "Check the token encryption configuration and try again.",
+        )
+        return redirect("analyze")
 
     try:
         job_id = start_analysis(repo_url, branch, access_token, request.user.id)

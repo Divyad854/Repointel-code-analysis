@@ -186,7 +186,6 @@ LOGIN_REDIRECT_URL = "dashboard"
 LOGOUT_REDIRECT_URL = "login"
 
 
-
 AI_SERVICE_URL = os.getenv(
     "AI_SERVICE_URL",
     "http://localhost:8001",
@@ -211,14 +210,36 @@ MAX_ACTIVE_ANALYSES_PER_USER = int(
     )
 )
 
-GITHUB_OAUTH_CLIENT_ID = os.getenv("GITHUB_OAUTH_CLIENT_ID", "").strip()
-GITHUB_OAUTH_CLIENT_SECRET = os.getenv("GITHUB_OAUTH_CLIENT_SECRET", "").strip()
-GITHUB_OAUTH_REDIRECT_URI = os.getenv("GITHUB_OAUTH_REDIRECT_URI", "").strip()
+
+# GitHub OAuth configuration
+GITHUB_OAUTH_CLIENT_ID = os.getenv(
+    "GITHUB_OAUTH_CLIENT_ID",
+    "",
+).strip()
+
+GITHUB_OAUTH_CLIENT_SECRET = os.getenv(
+    "GITHUB_OAUTH_CLIENT_SECRET",
+    "",
+).strip()
+
+GITHUB_OAUTH_REDIRECT_URI = os.getenv(
+    "GITHUB_OAUTH_REDIRECT_URI",
+    "",
+).strip()
+
+
+# Encryption key for GitHub OAuth access tokens
+GITHUB_TOKEN_ENCRYPTION_KEY = os.getenv(
+    "GITHUB_TOKEN_ENCRYPTION_KEY",
+    "",
+).strip()
+
 
 EMAIL_BACKEND = os.getenv(
     "EMAIL_BACKEND",
     "django.core.mail.backends.smtp.EmailBackend",
 )
+
 EMAIL_HOST = os.getenv("EMAIL_HOST", "")
 EMAIL_PORT = int(os.getenv("EMAIL_PORT", "587"))
 EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER", "")

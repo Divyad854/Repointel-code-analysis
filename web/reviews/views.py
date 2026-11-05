@@ -38,7 +38,7 @@ from django.views.decorators.http import require_GET, require_POST
 from .forms import AnalyzeForm, GuidelineForm
 
 # Database models used by these views.
-from .models import Analysis, Finding, Guideline
+from .models import Analysis, Finding, GitHubConnection, Guideline
 
 # Service functions communicate with the AI service.
 # These functions keep API/business logic outside the Django view layer.
@@ -68,6 +68,19 @@ PIPELINE = [
     ("final_reviewer", "Final reviewer & scoring"),
     ("generate_report", "Generate report"),
 ]
+
+
+def _get_github_access_token(user):
+    """Return this Repo Intel user's saved GitHub token, if connected."""
+    connection = GitHubConnection.objects.filter(user=user).first()
+    if not connection:
+        return ""
+
+    try:
+        return connection.get_access_token()
+    except ValueError:
+        # Keep the connection record. A fresh OAuth callback can replace the token.
+        return ""
 
 
 def _dashboard_context(user):
@@ -267,10 +280,12 @@ def analyze(request):
             repo_url = form.cleaned_data["repo_url"]
 
             is_private = form.cleaned_data["analysis_type"] == "private"
-            github_token = request.session.get("github_access_token", "")
+            github_token = (
+                _get_github_access_token(request.user) if is_private else ""
+            )
 
-            # Reuse the GitHub token from this user's authenticated session.
-            # Start OAuth only when no reusable token is available.
+            # The token belongs to the Repo Intel account, not this browser session.
+            # It can therefore be reused on other devices after the user signs in.
             if is_private and not github_token:
                 request.session["pending_private_repo_url"] = repo_url
                 return redirect("github_connect")
@@ -282,14 +297,12 @@ def analyze(request):
                 job_id = start_analysis(
                     repo_url,
                     "",
-                    github_token if is_private else "",
+                    github_token,
                     request.user.id,
                 )
 
             except PrivateRepositoryAuthRequired:
-                # The token may have expired, been revoked, or lack repository access.
-                # Ask the user to authorize again only when GitHub rejects access.
-                request.session.pop("github_access_token", None)
+                # Keep the database connection. OAuth callback can replace its token.
                 request.session["pending_private_repo_url"] = repo_url
                 return redirect("github_connect")
 
@@ -547,8 +560,10 @@ def rerun_analysis(request, pk):
         )
         return redirect("analyze")
 
-    # Reuse the GitHub token saved after the user's previous OAuth authorization.
-    github_token = request.session.get("github_access_token", "")
+    # Retrieve the token from the user's database connection, not the session.
+    github_token = (
+        _get_github_access_token(request.user) if old.includes_private else ""
+    )
     if old.includes_private and not github_token:
         request.session["pending_private_repo_url"] = old.repo_url
         return redirect("github_connect")
@@ -558,12 +573,11 @@ def rerun_analysis(request, pk):
         job_id = start_analysis(
             old.repo_url,
             old.branch,
-            github_token if old.includes_private else "",
+            github_token,
             request.user.id,
         )
     except PrivateRepositoryAuthRequired:
-        # GitHub rejected the saved token; clear it and request authorization again.
-        request.session.pop("github_access_token", None)
+        # Keep the saved connection; request fresh OAuth authorization.
         request.session["pending_private_repo_url"] = old.repo_url
         return redirect("github_connect")
     except ValueError as exc:
