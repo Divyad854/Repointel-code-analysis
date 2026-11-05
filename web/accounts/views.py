@@ -54,7 +54,8 @@ class AccountPasswordChangeView(PasswordChangeView):
 
 
 @never_cache
-@ensure_csrf_cookie
+# 
+@ensure_csrf_cookie 
 def register(request):
     if request.user.is_authenticated:
         return redirect("dashboard")
@@ -285,25 +286,6 @@ def connect_github(request):
     return redirect(f"{GITHUB_AUTHORIZE_URL}?{params}")
 
 
-def _revoke_github_grant(access_token):
-    for attempt in range(3):
-        try:
-            response = requests.delete(
-                f"{GITHUB_API_URL}/applications/{settings.GITHUB_OAUTH_CLIENT_ID}/grant",
-                auth=(settings.GITHUB_OAUTH_CLIENT_ID, settings.GITHUB_OAUTH_CLIENT_SECRET),
-                json={"access_token": access_token},
-                headers={"Accept": "application/vnd.github+json"},
-                timeout=15,
-            )
-            if response.status_code == 404:
-                return
-            response.raise_for_status()
-            return
-        except requests.RequestException:
-            if attempt == 2:
-                raise
-            time.sleep(0.5 * (attempt + 1))
-
 
 @login_required
 def github_callback(request):
@@ -367,39 +349,23 @@ def github_callback(request):
         user_response.raise_for_status()
         github_login = user_response.json().get("login")
     except requests.RequestException:
-        try:
-            _revoke_github_grant(access_token)
-        except requests.RequestException:
-            messages.error(request, "Could not verify the GitHub account or revoke access. Revoke Repo Intel in GitHub Settings → Applications.")
-            return redirect("analyze")
         messages.error(request, "Could not verify your GitHub account. Please try again.")
         return redirect("analyze")
     except ValueError:
-        try:
-            _revoke_github_grant(access_token)
-        except requests.RequestException:
-            messages.error(request, "GitHub returned an invalid account response and access could not be revoked. Revoke Repo Intel in GitHub Settings → Applications.")
-            return redirect("analyze")
         messages.error(request, "GitHub returned an invalid account response.")
         return redirect("analyze")
 
     if not github_login:
-        try:
-            _revoke_github_grant(access_token)
-        except requests.RequestException:
-            messages.error(request, "GitHub account verification failed and access could not be revoked. Revoke Repo Intel in GitHub Settings → Applications.")
-            return redirect("analyze")
         messages.error(request, "GitHub did not return an account name. Please try again.")
         return redirect("analyze")
+
+    # Keep the GitHub token in the user's server-side Django session so it can
+    # be reused for later private-repository analyses in this session.
+    request.session["github_access_token"] = access_token
 
     try:
         job_id = start_analysis(repo_url, branch, access_token, request.user.id)
     except (AIServiceError, requests.RequestException, ValueError) as exc:
-        try:
-            _revoke_github_grant(access_token)
-        except requests.RequestException:
-            messages.error(request, "Could not start the analysis or revoke GitHub access. Revoke Repo Intel in GitHub Settings → Applications.")
-            return redirect("analyze")
         messages.error(request, str(exc))
         return redirect("analyze")
 

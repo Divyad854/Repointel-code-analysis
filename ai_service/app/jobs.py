@@ -8,7 +8,6 @@ import time
 import uuid
 from typing import Any
 
-import httpx
 
 from .config import get_settings
 from .graph import STEP_LABELS, build_graph
@@ -88,25 +87,6 @@ async def run_job(job_id: str, req: AnalyzeRequest) -> None:
     except Exception as exc:  # never leave a job hanging
         log.exception("job %s crashed", job_id)
         job["status"], job["error"] = "failed", f"Internal error: {exc.__class__.__name__}"
-    finally:
-        # Revoke temporary GitHub OAuth access after the job, even if analysis failed.
-        if req.github_access_token:
-            try:
-                await _revoke_github_grant(req.github_access_token)
-            except Exception:
-                log.exception("GitHub grant revocation failed for repository job %s", job_id)
-                revoke_error = (
-                    "GitHub access could not be revoked automatically. "
-                    "Revoke Repo Intel in GitHub Settings → Applications."
-                )
-                if job["status"] == "done" and job["report"]:
-                    warnings = job["report"].setdefault("warnings", [])
-                    if revoke_error not in warnings:
-                        warnings.append(revoke_error)
-                else:
-                    job["error"] = f"{job['error'] or ''} {revoke_error}".strip()
-                    job["status"] = "failed"
-            req.github_access_token = None
 
 
 
@@ -232,43 +212,6 @@ def _aggregate_profile(username: str, reports: list[dict], warnings: list[str], 
     }
 
 
-# Revoke the GitHub OAuth grant used for a profile analysis.
-async def _revoke_profile_grant(req: ProfileAnalyzeRequest) -> None:
-    if not req.github_access_token:
-        raise RuntimeError("GitHub access token is unavailable for revocation.")
-    await _revoke_github_grant(req.github_access_token)
-
-
-# Call GitHub's OAuth grant-revocation endpoint, retrying transient HTTP failures.
-async def _revoke_github_grant(access_token: str) -> None:
-    settings = get_settings()
-    if not settings.github_oauth_client_id or not settings.github_oauth_client_secret:
-        raise RuntimeError("GitHub grant revocation is not configured.")
-    for attempt in range(3):
-        try:
-            async with httpx.AsyncClient(timeout=15) as client:
-                response = await client.request(
-                    "DELETE",
-                    f"https://api.github.com/applications/{settings.github_oauth_client_id}/grant",
-                    auth=(settings.github_oauth_client_id, settings.github_oauth_client_secret),
-                    json={"access_token": access_token},
-                    headers={"Accept": "application/vnd.github+json"},
-                )
-            if response.status_code == 404:
-                return
-            if 400 <= response.status_code < 500:
-                raise RuntimeError(
-                    f"GitHub rejected grant revocation (HTTP {response.status_code}). "
-                    "Check the GitHub OAuth app client ID and secret."
-                )
-            response.raise_for_status()
-            return
-        except httpx.HTTPError:
-            if attempt == 2:
-                raise
-            await asyncio.sleep(0.5 * (attempt + 1))
-
-
 # Analyze all selected repositories in a GitHub profile and aggregate their reports.
 # analyzes multiple repositories.
 # Analyze multiple repositories sequentially
@@ -279,6 +222,7 @@ async def run_profile_job(job_id: str, req: ProfileAnalyzeRequest) -> None:
     reports: list[dict] = []
     warnings: list[str] = []
     error = ""
+    # Returns an increasing clock value
     deadline = time.monotonic() + get_settings().job_timeout_s
     try:
         # Fetch the profile's repositories, respecting the remaining job time limit.
@@ -343,23 +287,6 @@ async def run_profile_job(job_id: str, req: ProfileAnalyzeRequest) -> None:
     except Exception as exc:
         log.exception("profile job %s failed", job_id)
         error = str(exc)[:300]
-    finally:
-        # Private-repository access is temporary; revoke the OAuth grant after processing.
-        if req.include_private:
-            try:
-                await _revoke_profile_grant(req)
-            except Exception:
-                log.exception("GitHub grant revocation failed for profile job %s", job_id)
-                revoke_error = (
-                    "GitHub access could not be revoked automatically. Revoke Repo Intel in GitHub Settings → Applications."
-                )
-                if job["report"] and not error:
-                    warnings = job["report"].setdefault("warnings", [])
-                    if revoke_error not in warnings:
-                        warnings.append(revoke_error)
-                else:
-                    error = (error + " " if error else "") + revoke_error
-        req.github_access_token = None
 
     job["error"] = error or None
     job["status"] = "failed" if error else "done"

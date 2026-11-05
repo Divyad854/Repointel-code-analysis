@@ -64,7 +64,7 @@ class BaseLLM:
         # Actual code or review prompt  
         user: str,
         *,
-        # Selects the plain JSON request method when true
+        # Selects the plain JSON request method when true   plain_json=private_repository,
         plain_json: bool = False,
     ) -> T:
         async with self._sem:
@@ -74,11 +74,11 @@ class BaseLLM:
             runner = self._run_json if plain_json else self._run
             return await runner(schema, system, user)
 
-
+# 
     async def _run(self, schema: type[T], system: str, user: str) -> T:  # pragma: no cover - interface
         raise NotImplementedError
     
-
+# for private repository reviews, the Groq model is called without a structured-output method.
     async def _run_json(self, schema: type[T], system: str, user: str) -> T:
         return await self._run(schema, system, user)
 
@@ -132,6 +132,7 @@ class GroqLLM(BaseLLM):
 # Groq returns JSON text
 # json.loads() + Pydantic validation
 # Validated result returned to LangGraph
+# used for private repository reviews where the Groq model is called without a structured-output method.
     async def _run_json(self, schema: type[T], system: str, user: str) -> T:
         if self._blocked_error:
             raise LLMError(self._blocked_error)
@@ -149,6 +150,7 @@ class GroqLLM(BaseLLM):
                 timeout=90,
                 max_retries=0,
             ) as client:
+                # o get an attribute
                 self.provider_requests_sent = getattr(self, "provider_requests_sent", 0) + 1
                
             #    Send request
@@ -208,7 +210,7 @@ class GroqLLM(BaseLLM):
 # Checks token budget.
 # Sends one request to Groq using ainvoke().
 # Receives and returns the structured response.
-
+# public repository reviews use this method
     async def _run_with_method(
         self,
         schema: type[T],

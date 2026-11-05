@@ -1,3 +1,8 @@
+# -----------------------------------------------------------------------------
+# REPO-INTEL REVIEW ENGINE — COMMENTED REFERENCE
+# Main pipeline: chunk code -> review with LLM/RAG/rules -> verify findings -> score -> summarize.
+# Comments explain intent; the original executable statements are preserved.
+# -----------------------------------------------------------------------------
 """Building blocks used by the graph nodes: chunking, prompts, LLM review, evidence verification, scoring.
 Quality	Readability, duplication, complexity, bugs
 Security	SQL injection, XSS, authentication, secrets
@@ -32,6 +37,7 @@ Weak hashing	          Security design concerns
 Both contribute security findings.
 
 """
+# Allows type annotations to be evaluated lazily, useful for forward references.
 from __future__ import annotations
 
 import asyncio
@@ -63,6 +69,8 @@ LANG_BY_EXT = {
 }
 
 
+# CHUNKING: Prepare repository source files for AI review by splitting them into smaller pieces.
+# Smaller chunks help control prompt size and let the reviewer identify the original file and line.
 # ------------------------------------------------------------------ chunking
 @dataclass
 class Chunk:
@@ -72,6 +80,7 @@ class Chunk:
     priority: float    # higher = more important file
 
 
+# Assign a priority score so important application files are reviewed before less relevant files.
 def file_priority(path: str, content: str) -> float:
     """Heuristic ranking of which source files deserve LLM attention first."""
     p = path.lower()
@@ -92,17 +101,21 @@ def file_priority(path: str, content: str) -> float:
         score += min(size / 8000, 3)
     return score
 
-
+# creates the appropriate text splitter for a file.
+# Choose a language-aware splitter when the file extension is recognized; otherwise use a generic splitter.
 def _splitter(path: str) -> RecursiveCharacterTextSplitter:
     s = get_settings()
+    # .py
     ext = "." + path.rsplit(".", 1)[-1].lower() if "." in path else ""
     lang = LANG_BY_EXT.get(ext)
     if lang:
+        # Create the splitter
         return RecursiveCharacterTextSplitter.from_language(
             lang, chunk_size=s.chunk_size, chunk_overlap=s.chunk_overlap, add_start_index=True)
     return RecursiveCharacterTextSplitter(chunk_size=s.chunk_size, chunk_overlap=s.chunk_overlap, add_start_index=True)
 
 
+# Redact secrets, split the file, calculate original line numbers, and create Chunk objects.
 def make_chunks(path: str, content: str) -> list[Chunk]:
     """Redact secrets, split with a language-aware LangChain splitter, then number the lines so the
     LLM can cite exact line numbers."""
@@ -117,13 +130,15 @@ def make_chunks(path: str, content: str) -> list[Chunk]:
     return chunks
 
 
+# Build one combined list of chunks from the selected repository files.
 def collect_chunks(files: dict[str, str], paths: list[str]) -> list[Chunk]:
     chunks: list[Chunk] = []
     for path in paths:
         chunks.extend(make_chunks(path, files[path]))
     return chunks
 
-
+# choose important chunks
+# Rank chunks by keyword relevance and file priority, then keep only the requested number.
 def rank_chunks(chunks: list[Chunk], keywords: re.Pattern | None, limit: int) -> list[Chunk]:
     """Pick the most relevant chunks for a reviewer (keyword hits first, then file priority)."""
     def score(c: Chunk) -> float:
@@ -134,7 +149,8 @@ def rank_chunks(chunks: list[Chunk], keywords: re.Pattern | None, limit: int) ->
         pool = [c for c in chunks if keywords.search(c.text)]
     return sorted(pool, key=score, reverse=True)[:limit]
 
-
+# distribute chunks across files
+# Select a bounded sample from multiple files so the review is not concentrated in one file.
 def select_chunks_per_file(
     chunks: list[Chunk],
     limit: int,
@@ -194,6 +210,7 @@ PERFORMANCE_KEYWORDS = re.compile(
     r"useEffect|useState|sleep\(|sort\(|\.filter\(|\.find\()")
 
 
+# PROMPTS: Define the shared rules and category-specific instructions sent to the LLM.
 # ------------------------------------------------------------------- prompts
 COMMON_RULES = """You are a meticulous senior code reviewer. Rules:
 - Report ONLY problems that are visibly present in the code shown. Never speculate about code you cannot see.
@@ -229,6 +246,8 @@ def _user_prompt(chunk: Chunk, techs: list[str], extra: str = "") -> str:
     return f"Repository technologies: {tech}\nFile: {chunk.path}\n{extra}\nCode:\n{chunk.text}"
 
 
+# Send several selected chunks in one structured LLM request while respecting the prompt budget.
+# Also include selected RAG guideline passages when they are available.
 async def review_combined_chunks(
     llm: BaseLLM,
     chunks: list[Chunk],
@@ -373,6 +392,7 @@ async def review_combined_chunks(
     return findings, None, True, sorted(sources), selected_chunks, len(used_guidelines)
 
 
+# EVIDENCE VERIFICATION: Check that LLM-quoted code exists in the actual redacted source file.
 # --------------------------------------------------------- evidence checking
 def _norm(s: str) -> str:
     return re.sub(r"\s+", " ", s).strip().lower()
@@ -382,6 +402,7 @@ def _strip_prefix(s: str) -> str:
     return re.sub(r"^\s*\d+:\s?", "", s, flags=re.M)
 
 
+# Reject unsupported findings and correct the reported line number using the matching source line.
 def verify_evidence(finding: Finding, content_redacted: str) -> Finding | None:
     """Drop LLM findings whose quoted evidence is not really in the file; fix their line number."""
     evidence = _strip_prefix(finding.evidence).strip()
@@ -399,7 +420,9 @@ def verify_evidence(finding: Finding, content_redacted: str) -> Finding | None:
     finding.evidence = evidence[:300]
     return finding
 
+# Confidence clamping
 
+# Keep confidence values within the valid 0.0-to-1.0 range.
 def _clamp(x: float) -> float:
     try:
         return max(0.0, min(1.0, float(x)))
@@ -407,7 +430,9 @@ def _clamp(x: float) -> float:
         return 0.6
 
 
+# CATEGORY REVIEWS: Run focused LLM reviews and collect only evidence-verified findings.
 # --------------------------------------------------------------- LLM reviews
+# Run one review category (quality, security, or performance) across chunks concurrently.
 async def review_chunks(
     llm: BaseLLM, category: str, chunks: list[Chunk], files_redacted: dict[str, str], techs: list[str],
 ) -> tuple[list[Finding], list[str], bool]:
@@ -448,6 +473,7 @@ async def review_chunks(
     return findings, warnings, succeeded
 
 
+# Use RAG to retrieve the user's coding guidelines and ask the LLM to check for clear violations.
 async def review_with_guidelines(
     llm: BaseLLM, user_id: int, chunks: list[Chunk], files_redacted: dict[str, str], techs: list[str],
     retrieve, citation,
@@ -509,6 +535,7 @@ async def review_with_guidelines(
     return findings, warnings, sorted(sources), succeeded
 
 
+# DOCUMENTATION: Evaluate README and repository documentation using rules and LLM review.
 # --------------------------------------------------------------- documentation
 def documentation_checklist(files: dict[str, str], all_paths: list[str]) -> tuple[dict, list[Finding], str]:
     readme_path = next((p for p in sorted(files, key=lambda x: x.count("/")) if p.rsplit("/", 1)[-1].lower().startswith("readme")), None)
@@ -569,7 +596,9 @@ async def review_readme(llm: BaseLLM, readme: str, techs: list[str]) -> tuple[li
     return out, None
 
 
+# ARCHITECTURE: Describe the project's frontend, backend, database, and deployment setup.
 # ------------------------------------------------------------ architecture
+# Build a basic architecture description from detected technologies if the LLM is unavailable.
 def fallback_architecture(tech: dict) -> ArchitectureInfo:
     t = tech.get("technologies", {})
     fw = t.get("frameworks", [])
@@ -603,16 +632,19 @@ async def describe_architecture(llm: BaseLLM, snap_files: dict[str, str], all_pa
         return fallback_architecture(tech), f"architecture: LLM call failed, used dependency-based fallback ({str(exc)[:100]})"
 
 
+# SCORING: Deduplicate findings, calculate category scores, and produce the overall score.
 # ----------------------------------------------------------------- scoring
 PENALTY = {"critical": 25, "high": 12, "medium": 5, "low": 2}
 WEIGHTS = {"quality": 0.25, "security": 0.30, "performance": 0.15, "best_practices": 0.15, "documentation": 0.15}
 
 
+# Convert the number of passed documentation checklist items into a percentage score.
 def documentation_score(checklist: dict) -> int:
     items = list(checklist.values())
     return round(sum(bool(item) for item in items) * 100 / len(items)) if items else 0
 
 
+# Remove duplicate findings and retain the strongest finding for each duplicate group.
 def dedupe(findings: list[dict]) -> list[dict]:
     """Same file+line+category reported twice (e.g. rule and LLM): keep the most severe/confident one."""
     best: dict[tuple, dict] = {}
@@ -626,6 +658,7 @@ def dedupe(findings: list[dict]) -> list[dict]:
     return out[:200]
 
 
+# Apply severity/confidence penalties and calculate a weighted score for evaluated categories.
 def compute_scores(
     findings: list[dict],
     evaluated: set[str],
@@ -646,6 +679,7 @@ def compute_scores(
     return scores, overall
 
 
+# Create a simple report summary without making another LLM request.
 def fallback_summary(scores: dict, overall: int, findings: list[dict]) -> FinalSummary:
     counts = {s: sum(1 for f in findings if f["severity"] == s) for s in SEVERITY_ORDER}
     seen, recs = set(), []
